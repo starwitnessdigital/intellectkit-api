@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>IntellectKit — Developer Tools for AI Agents</title>
+  <meta name="description" content="IntellectKit provides a clean REST API for web data extraction and developer utilities, purpose-built for AI agents and automation pipelines." />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #0d0f14;
+      --surface:  #161a22;
+      --border:   #252b38;
+      --accent:   #4f8ef7;
+      --accent2:  #7c5cfc;
+      --text:     #e2e8f0;
+      --muted:    #8899aa;
+      --green:    #34d399;
+      --mono:     'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+    }
+
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* ── Layout ── */
+    .container { max-width: 960px; margin: 0 auto; padding: 0 24px; }
+
+    /* ── Nav ── */
+    nav {
+      border-bottom: 1px solid var(--border);
+      padding: 18px 0;
+    }
+    nav .inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+    .logo {
+      font-size: 1.2rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: var(--text);
+    }
+    .logo span { color: var(--accent); }
+    nav ul {
+      list-style: none;
+      display: flex;
+      gap: 28px;
+    }
+    nav ul li a {
+      font-size: 0.875rem;
+      color: var(--muted);
+      font-weight: 500;
+    }
+    nav ul li a:hover { color: var(--text); text-decoration: none; }
+
+    /* ── Hero ── */
+    .hero {
+      padding: 90px 0 70px;
+      text-align: center;
+    }
+    .badge {
+      display: inline-block;
+      background: rgba(79,142,247,0.12);
+      color: var(--accent);
+      border: 1px solid rgba(79,142,247,0.3);
+      border-radius: 20px;
+      padding: 4px 14px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      margin-bottom: 24px;
+    }
+    h1 {
+      font-size: clamp(2.2rem, 5vw, 3.4rem);
+      font-weight: 800;
+      letter-spacing: -0.04em;
+      line-height: 1.1;
+      margin-bottom: 20px;
+    }
+    h1 .gradient {
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .hero-sub {
+      font-size: 1.15rem;
+      color: var(--muted);
+      max-width: 560px;
+      margin: 0 auto 36px;
+    }
+    .btn {
+      display: inline-block;
+      background: var(--accent);
+      color: #fff;
+      padding: 12px 28px;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 0.95rem;
+      transition: opacity 0.15s;
+    }
+    .btn:hover { opacity: 0.85; text-decoration: none; }
+    .btn-ghost {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      margin-left: 12px;
+    }
+    .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+
+    .hero-code {
+      margin-top: 52px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 22px 28px;
+      text-align: left;
+      font-family: var(--mono);
+      font-size: 0.88rem;
+      overflow-x: auto;
+    }
+    .hero-code .comment { color: var(--muted); }
+    .hero-code .keyword { color: var(--accent2); }
+    .hero-code .string  { color: var(--green); }
+    .hero-code .func    { color: var(--accent); }
+
+    /* ── Sections ── */
+    section { padding: 72px 0; border-top: 1px solid var(--border); }
+    h2 {
+      font-size: 1.8rem;
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      margin-bottom: 10px;
+    }
+    .section-sub { color: var(--muted); margin-bottom: 40px; font-size: 1.05rem; }
+
+    /* ── Cards ── */
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 18px;
+    }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 22px 24px;
+      transition: border-color 0.15s;
+    }
+    .card:hover { border-color: var(--accent); }
+    .card-icon { font-size: 1.4rem; margin-bottom: 10px; }
+    .card h3 { font-size: 1rem; font-weight: 600; margin-bottom: 6px; }
+    .card p { font-size: 0.875rem; color: var(--muted); }
+
+    /* ── Endpoints ── */
+    .endpoint-list { display: flex; flex-direction: column; gap: 10px; }
+    .endpoint {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px 20px;
+      display: flex;
+      align-items: flex-start;
+      gap: 16px;
+    }
+    .method {
+      background: rgba(79,142,247,0.15);
+      color: var(--accent);
+      border-radius: 4px;
+      padding: 2px 8px;
+      font-family: var(--mono);
+      font-size: 0.75rem;
+      font-weight: 700;
+      white-space: nowrap;
+      margin-top: 2px;
+    }
+    .endpoint-path {
+      font-family: var(--mono);
+      font-size: 0.88rem;
+      color: var(--text);
+      font-weight: 600;
+    }
+    .endpoint-desc { font-size: 0.83rem; color: var(--muted); margin-top: 2px; }
+
+    /* ── Pricing ── */
+    .pricing-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 18px;
+    }
+    .plan {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 26px 22px;
+    }
+    .plan.featured {
+      border-color: var(--accent);
+      background: linear-gradient(160deg, rgba(79,142,247,0.07), var(--surface));
+    }
+    .plan-name { font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 8px; }
+    .plan.featured .plan-name { color: var(--accent); }
+    .plan-price { font-size: 2rem; font-weight: 800; letter-spacing: -0.04em; margin-bottom: 4px; }
+    .plan-price span { font-size: 1rem; font-weight: 500; color: var(--muted); }
+    .plan-limit { font-size: 0.83rem; color: var(--muted); margin-bottom: 16px; }
+    .plan ul { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+    .plan ul li { font-size: 0.85rem; color: var(--muted); padding-left: 18px; position: relative; }
+    .plan ul li::before { content: "✓"; position: absolute; left: 0; color: var(--green); font-weight: 700; }
+
+    /* ── Auth box ── */
+    .auth-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 28px 32px;
+    }
+    .auth-box pre {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 16px 20px;
+      font-family: var(--mono);
+      font-size: 0.85rem;
+      overflow-x: auto;
+      margin-top: 16px;
+    }
+    .auth-box .hl { color: var(--green); }
+
+    /* ── AI Agents ── */
+    .agent-features {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 16px;
+      margin-top: 10px;
+    }
+    .agent-feat {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 18px 20px;
+    }
+    .agent-feat h4 { font-size: 0.9rem; font-weight: 600; margin-bottom: 6px; }
+    .agent-feat p { font-size: 0.82rem; color: var(--muted); }
+
+    /* ── Footer ── */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 36px 0;
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.85rem;
+    }
+    footer strong { color: var(--text); }
+  </style>
+</head>
+<body>
+
+<!-- ── Nav ── -->
+<nav>
+  <div class="inner">
+    <div class="logo">Intellect<span>Kit</span></div>
+    <ul>
+      <li><a href="#endpoints">Endpoints</a></li>
+      <li><a href="#pricing">Pricing</a></li>
+      <li><a href="#auth">Auth</a></li>
+      <li><a href="#agents">AI Agents</a></li>
+    </ul>
+  </div>
+</nav>
+
+<!-- ── Hero ── -->
+<div class="container">
+  <div class="hero">
+    <div class="badge">REST API &bull; JSON &bull; AI-Ready</div>
+    <h1>Developer tools<br/><span class="gradient">built for AI agents</span></h1>
+    <p class="hero-sub">
+      IntellectKit provides clean, structured data from the web — article extraction,
+      product data, page metadata, link analysis, and developer utilities. One API key, instant results.
+    </p>
+    <a href="#endpoints" class="btn">View Endpoints</a>
+    <a href="#pricing" class="btn btn-ghost">See Pricing</a>
+
+    <div class="hero-code">
+      <span class="comment"># Extract an article in one line</span><br/>
+      curl <span class="string">"https://api.intellectkit.dev/v1/extract/article?url=https://example.com/post"</span> \<br/>
+      &nbsp;&nbsp;-H <span class="string">"X-API-Key: ik_your_key_here"</span><br/>
+      <br/>
+      <span class="comment"># Validate an email address</span><br/>
+      curl <span class="string">"https://api.intellectkit.dev/v1/tools/validate-email?email=user@example.com"</span> \<br/>
+      &nbsp;&nbsp;-H <span class="string">"X-API-Key: ik_your_key_here"</span>
+    </div>
+  </div>
+
+  <!-- ── Overview ── -->
+  <section id="overview">
+    <h2>What is IntellectKit?</h2>
+    <p class="section-sub">A lightweight, fast API for extracting structured data from the web — designed to slot directly into AI agent pipelines.</p>
+    <div class="card-grid">
+      <div class="card">
+        <div class="card-icon">&#128196;</div>
+        <h3>Article Extraction</h3>
+        <p>Pull clean article text, author, publish date, images, and a reading-time estimate from any URL.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">&#128722;</div>
+        <h3>Product Data</h3>
+        <p>Extract name, price, currency, brand, availability, and rating from product pages using structured data and heuristics.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">&#128203;</div>
+        <h3>Page Metadata</h3>
+        <p>Retrieve Open Graph tags, Twitter cards, JSON-LD, canonical URL, favicon, and language in one call.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">&#128279;</div>
+        <h3>Link Analysis</h3>
+        <p>Get all links from a page, classified as internal or external, with anchor text and rel attributes.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">&#9999;&#65039;</div>
+        <h3>Clean Text</h3>
+        <p>Strip nav, footer, ads, and noise — return just the readable prose with word and character counts.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">&#128295;</div>
+        <h3>Developer Utilities</h3>
+        <p>Email validation and DNS record lookup. More utilities added regularly.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Endpoints ── -->
+  <section id="endpoints">
+    <h2>Endpoints</h2>
+    <p class="section-sub">All endpoints under <code>/v1/</code> require an <code>X-API-Key</code> header.</p>
+
+    <div class="endpoint-list">
+
+      <div class="endpoint">
+        <div class="method">GET</div>
+        <div>
+          <div class="endpoint-path">/health</div>
+          <div class="endpoint-desc">Service health check. No auth required. Returns <code>{"status":"ok"}</code>.</div>
+        </div>
+      </div>
+
+      <div class="endpoint">
+        <div class="method">GET</div>
+        <div>
+          <div class="endpoint-path">/v1/extract/article?url=</div>
+          <div class="endpoint-desc">Extract article content: title, author, publish date, body text, images, word count, reading time, summary.</div>
+        </div>
+      </div>
+
+      <div class="endpoint">
+        <div class="method">GET</div>
+        <div>
+          <div class="endpoint-path">/v1/extract/product?url=</div>
+          <div class="endpoint-desc">Extract product data: name, price, currency, brand, availability, rating, review count, images.</div>
+        </div>
+      </div>
+
+      <div class="endpoint">
+        <div class="method">GET</div>
+        <div>
+          <div class="endpoint-path">/v1/extract/metadata?url=</div>
+          <div class="endpoint-desc">Extract page metadata: Open Graph, Twitter cards, JSON-LD, canonical URL, language, favicon.</div>
+        </div>
+      </div>
+
+      <div class="endpoint">
+        <div class="method">GET</div>
+        <div>
+          <div class="endpoint-path">/v1/extract/links?url=</div>
+          <div class="endpoint-desc">Extract all links from a page with anchor text, rel attribute, and internal/external classification.</div>
+        </div>
+      </div>
+
+      <div class="endpoint">
+        <div class="method">GET</div>
+        <div>
+          <div class="endpoint-path">/v1/extract/text?url=</div>
+          <div class="endpoint-desc">Extract clean readable text with nav, ads, and UI chrome stripped. Returns word count and character count.</div>
+        </div>
+      </div>
+
+      <div class="endpoint">
+        <div class="method">GET</div>
+        <div>
+          <div class="endpoint-path">/v1/tools/validate-email?email=</div>
+          <div class="endpoint-desc">Validate an email address format. Returns isValid, reason, domain, and local parts.</div>
+        </div>
+      </div>
+
+      <div class="endpoint">
+        <div class="method">GET</div>
+        <div>
+          <div class="endpoint-path">/v1/tools/dns?domain=</div>
+          <div class="endpoint-desc">Look up DNS records (A, MX, TXT, NS, CNAME) for any domain.</div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ── Pricing ── -->
+  <section id="pricing">
+    <h2>Pricing</h2>
+    <p class="section-sub">Start free. Scale when you need to.</p>
+    <div class="pricing-grid">
+
+      <div class="plan">
+        <div class="plan-name">Free</div>
+        <div class="plan-price">$0</div>
+        <div class="plan-limit">100 requests / day</div>
+        <ul>
+          <li>All endpoints</li>
+          <li>JSON responses</li>
+          <li>Community support</li>
+        </ul>
+      </div>
+
+      <div class="plan featured">
+        <div class="plan-name">Starter</div>
+        <div class="plan-price">$9<span>/mo</span></div>
+        <div class="plan-limit">1,000 requests / day</div>
+        <ul>
+          <li>All endpoints</li>
+          <li>Email support</li>
+          <li>Higher rate limits</li>
+        </ul>
+      </div>
+
+      <div class="plan">
+        <div class="plan-name">Pro</div>
+        <div class="plan-price">$29<span>/mo</span></div>
+        <div class="plan-limit">10,000 requests / day</div>
+        <ul>
+          <li>All endpoints</li>
+          <li>Priority support</li>
+          <li>Usage analytics</li>
+        </ul>
+      </div>
+
+      <div class="plan">
+        <div class="plan-name">Enterprise</div>
+        <div class="plan-price">$99<span>/mo</span></div>
+        <div class="plan-limit">Unlimited requests</div>
+        <ul>
+          <li>All endpoints</li>
+          <li>Dedicated support</li>
+          <li>SLA available</li>
+          <li>Custom integrations</li>
+        </ul>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ── For AI Agents ── -->
+  <section id="agents">
+    <h2>Built for AI Agents</h2>
+    <p class="section-sub">IntellectKit endpoints are designed to be called directly by LLM tool-use — clean JSON, predictable schemas, no scraping headaches.</p>
+    <div class="agent-features">
+      <div class="agent-feat">
+        <h4>Predictable JSON</h4>
+        <p>Every response follows a consistent schema. Null fields are explicit, never missing. Easy to parse with structured outputs.</p>
+      </div>
+      <div class="agent-feat">
+        <h4>GET-only Reads</h4>
+        <p>All data endpoints use GET requests with URL query params — trivial to add as tool definitions in any agent framework.</p>
+      </div>
+      <div class="agent-feat">
+        <h4>Fast Cold Path</h4>
+        <p>No database lookups on the critical path for extraction. Fetch, parse, return.</p>
+      </div>
+      <div class="agent-feat">
+        <h4>Error Messages</h4>
+        <p>Errors return descriptive JSON with a <code>reason</code> field — agents can relay them directly to users or retry logic.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Authentication ── -->
+  <section id="auth">
+    <h2>Authentication</h2>
+    <p class="section-sub">Pass your API key in the <code>X-API-Key</code> header on every request to <code>/v1/</code> endpoints.</p>
+    <div class="auth-box">
+      <p style="color:var(--muted);font-size:0.9rem;">Include the header with every API request:</p>
+      <pre>curl https://api.intellectkit.dev/v1/extract/article?url=https://example.com \
+  -H <span class="hl">"X-API-Key: ik_your_key_here"</span></pre>
+
+      <p style="color:var(--muted);font-size:0.9rem;margin-top:20px;">Python example:</p>
+      <pre>import requests
+
+resp = requests.get(
+    "https://api.intellectkit.dev/v1/extract/article",
+    params={"url": "https://example.com/post"},
+    headers={"X-API-Key": <span class="hl">"ik_your_key_here"</span>}
+)
+data = resp.json()</pre>
+
+      <p style="font-size:0.85rem;color:var(--muted);margin-top:20px;">
+        Missing or invalid keys return <code>401 Unauthorized</code>.<br/>
+        Requests over your daily limit return <code>429 Too Many Requests</code>.
+      </p>
+    </div>
+  </section>
+</div>
+
+<!-- ── Footer ── -->
+<footer>
+  <strong>IntellectKit</strong> &mdash; Developer tools for AI agents.<br/>
+  <span style="margin-top:6px;display:block;">By <strong>Hint of Intellect</strong></span>
+</footer>
+
+</body>
+</html>
