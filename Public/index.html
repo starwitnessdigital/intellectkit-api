@@ -57,6 +57,7 @@
       list-style: none;
       display: flex;
       gap: 28px;
+      flex-wrap: wrap;
     }
     nav ul li a {
       font-size: 0.875rem;
@@ -64,6 +65,13 @@
       font-weight: 500;
     }
     nav ul li a:hover { color: var(--text); text-decoration: none; }
+    nav ul li a.nav-highlight {
+      color: var(--accent);
+      border: 1px solid rgba(79,142,247,0.3);
+      border-radius: 6px;
+      padding: 3px 10px;
+    }
+    nav ul li a.nav-highlight:hover { background: rgba(79,142,247,0.08); }
 
     /* ── Hero ── */
     .hero {
@@ -255,6 +263,61 @@
     .agent-feat h4 { font-size: 0.9rem; font-weight: 600; margin-bottom: 6px; }
     .agent-feat p { font-size: 0.82rem; color: var(--muted); }
 
+    /* ── Agent code examples ── */
+    .agent-examples { display: flex; flex-direction: column; gap: 20px; margin-top: 28px; }
+    .agent-example {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    .agent-example-header {
+      padding: 10px 18px;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .agent-example-header .dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--accent);
+      display: inline-block;
+    }
+    .agent-example pre {
+      margin: 0;
+      padding: 18px 20px;
+      font-family: var(--mono);
+      font-size: 0.83rem;
+      overflow-x: auto;
+      line-height: 1.55;
+    }
+    .agent-example .c  { color: var(--muted); }
+    .agent-example .k  { color: var(--accent2); }
+    .agent-example .s  { color: var(--green); }
+    .agent-example .f  { color: var(--accent); }
+
+    /* ── Why section ── */
+    .why-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      margin-top: 12px;
+    }
+    .why-item {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px 22px;
+    }
+    .why-item .why-check { color: var(--green); font-weight: 700; margin-bottom: 8px; font-size: 1.1rem; }
+    .why-item h4 { font-size: 0.9rem; font-weight: 600; margin-bottom: 5px; }
+    .why-item p { font-size: 0.82rem; color: var(--muted); }
+
     /* ── Footer ── */
     footer {
       border-top: 1px solid var(--border);
@@ -273,10 +336,11 @@
   <div class="inner">
     <div class="logo">Intellect<span>Kit</span></div>
     <ul>
+      <li><a href="#agents">For AI Agents</a></li>
       <li><a href="#endpoints">Endpoints</a></li>
       <li><a href="#pricing">Pricing</a></li>
       <li><a href="#auth">Auth</a></li>
-      <li><a href="#agents">AI Agents</a></li>
+      <li><a href="/v1/openapi" class="nav-highlight">OpenAPI Spec</a></li>
     </ul>
   </div>
 </nav>
@@ -354,6 +418,14 @@
         <div>
           <div class="endpoint-path">/health</div>
           <div class="endpoint-desc">Service health check. No auth required. Returns <code>{"status":"ok"}</code>.</div>
+        </div>
+      </div>
+
+      <div class="endpoint">
+        <div class="method">GET</div>
+        <div>
+          <div class="endpoint-path"><a href="/v1/openapi">/v1/openapi</a></div>
+          <div class="endpoint-desc">OpenAPI 3.0 specification (YAML). No auth required. Use for agent discovery and tool schema generation.</div>
         </div>
       </div>
 
@@ -472,7 +544,7 @@
 
   <!-- ── For AI Agents ── -->
   <section id="agents">
-    <h2>Built for AI Agents</h2>
+    <h2>For AI Agents</h2>
     <p class="section-sub">IntellectKit endpoints are designed to be called directly by LLM tool-use — clean JSON, predictable schemas, no scraping headaches.</p>
     <div class="agent-features">
       <div class="agent-feat">
@@ -490,6 +562,93 @@
       <div class="agent-feat">
         <h4>Error Messages</h4>
         <p>Errors return descriptive JSON with a <code>reason</code> field — agents can relay them directly to users or retry logic.</p>
+      </div>
+    </div>
+
+    <div class="agent-examples">
+
+      <div class="agent-example">
+        <div class="agent-example-header"><span class="dot"></span>Claude Code &mdash; MCP server (recommended)</div>
+        <pre><span class="c"># Add to ~/.claude/claude_desktop_config.json</span>
+{
+  <span class="s">"mcpServers"</span>: {
+    <span class="s">"intellectkit"</span>: {
+      <span class="s">"command"</span>: <span class="s">"npx"</span>,
+      <span class="s">"args"</span>: [<span class="s">"@intellectkit/mcp-server"</span>],
+      <span class="s">"env"</span>: { <span class="s">"INTELLECTKIT_API_KEY"</span>: <span class="s">"ik_your_key_here"</span> }
+    }
+  }
+}</pre>
+      </div>
+
+      <div class="agent-example">
+        <div class="agent-example-header"><span class="dot"></span>Anthropic SDK &mdash; tool_use</div>
+        <pre><span class="k">import</span> anthropic
+
+client = anthropic.Anthropic()
+tools = [{
+    <span class="s">"name"</span>: <span class="s">"extract_article"</span>,
+    <span class="s">"description"</span>: <span class="s">"Extract article content from a URL"</span>,
+    <span class="s">"input_schema"</span>: {
+        <span class="s">"type"</span>: <span class="s">"object"</span>,
+        <span class="s">"properties"</span>: {<span class="s">"url"</span>: {<span class="s">"type"</span>: <span class="s">"string"</span>}},
+        <span class="s">"required"</span>: [<span class="s">"url"</span>]
+    }
+}]
+
+<span class="c"># When Claude calls the tool, forward to IntellectKit:</span>
+resp = requests.get(
+    <span class="s">"https://api.intellectkit.dev/v1/extract/article"</span>,
+    params={<span class="s">"url"</span>: tool_input[<span class="s">"url"</span>]},
+    headers={<span class="s">"X-API-Key"</span>: <span class="s">"ik_your_key_here"</span>}
+)</pre>
+      </div>
+
+      <div class="agent-example">
+        <div class="agent-example-header"><span class="dot"></span>OpenAI &mdash; function calling</div>
+        <pre>tools = [{
+    <span class="s">"type"</span>: <span class="s">"function"</span>,
+    <span class="s">"function"</span>: {
+        <span class="s">"name"</span>: <span class="s">"extract_text"</span>,
+        <span class="s">"description"</span>: <span class="s">"Get clean readable text from any URL"</span>,
+        <span class="s">"parameters"</span>: {
+            <span class="s">"type"</span>: <span class="s">"object"</span>,
+            <span class="s">"properties"</span>: {<span class="s">"url"</span>: {<span class="s">"type"</span>: <span class="s">"string"</span>}},
+            <span class="s">"required"</span>: [<span class="s">"url"</span>]
+        }
+    }
+}]
+
+<span class="c"># Full schemas for all 7 tools in AGENTS.md</span></pre>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ── Why IntellectKit ── -->
+  <section id="why">
+    <h2>Why IntellectKit?</h2>
+    <p class="section-sub">One API key replaces a stack of scraping tools, browser dependencies, and per-service integrations.</p>
+    <div class="why-grid">
+      <div class="why-item">
+        <div class="why-check">&#10003;</div>
+        <h4>One API key</h4>
+        <p>Article extraction, product data, metadata, links, text, email validation, DNS &mdash; all from a single key with a unified auth pattern.</p>
+      </div>
+      <div class="why-item">
+        <div class="why-check">&#10003;</div>
+        <h4>Clean typed JSON</h4>
+        <p>Every field is typed and null-safe. No missing keys, no inconsistent shapes. Feed responses directly into structured output parsers.</p>
+      </div>
+      <div class="why-item">
+        <div class="why-check">&#10003;</div>
+        <h4>Agent-optimized responses</h4>
+        <p>Fields like <code>summary</code>, <code>wordCount</code>, and <code>readingTimeMinutes</code> are designed for agent reasoning, not just display.</p>
+      </div>
+      <div class="why-item">
+        <div class="why-check">&#10003;</div>
+        <h4>No browser dependency</h4>
+        <p>No Playwright, Puppeteer, or headless Chrome to maintain. Fast, lightweight extraction with zero infrastructure overhead.</p>
       </div>
     </div>
   </section>
@@ -524,7 +683,13 @@ data = resp.json()</pre>
 <!-- ── Footer ── -->
 <footer>
   <strong>IntellectKit</strong> &mdash; Developer tools for AI agents.<br/>
-  <span style="margin-top:6px;display:block;">By <strong>Hint of Intellect</strong></span>
+  <span style="margin-top:10px;display:block;">
+    <a href="/v1/openapi">OpenAPI Spec</a>
+    &nbsp;&bull;&nbsp;
+    <a href="/AGENTS.md">Agent Integration Guide</a>
+    &nbsp;&bull;&nbsp;
+    By <strong>Hint of Intellect</strong>
+  </span>
 </footer>
 
 </body>

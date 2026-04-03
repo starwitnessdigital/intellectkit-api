@@ -1,0 +1,29 @@
+{
+  "name": "@intellectkit/mcp-server",
+  "version": "1.0.0",
+  "description": "MCP server wrapping IntellectKit API endpoints as tools for Claude and other AI agents",
+  "keywords": ["mcp", "ai", "agents", "web-extraction", "intellectkit", "claude"],
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "intellectkit-mcp": "./dist/index.js"
+  },
+  "main": "./dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx src/index.ts",
+    "prepare": "npm run build"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

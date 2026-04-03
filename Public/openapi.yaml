@@ -1,0 +1,880 @@
+openapi: 3.0.3
+
+info:
+  title: IntellectKit API
+  version: 1.0.0
+  description: |
+    IntellectKit provides clean, structured data from the web — purpose-built for AI agents,
+    automation pipelines, and developer tools.
+
+    ## What this API does
+    - **Extract** article content, product data, page metadata, links, and clean text from any URL
+    - **Validate** email addresses and look up DNS records
+
+    ## Agent integration
+    All endpoints use GET requests with a single query parameter. Responses are typed JSON
+    with predictable schemas — null fields are always present (never missing). This makes
+    IntellectKit trivial to wrap as LLM tool definitions in any agent framework.
+
+    ## Authentication
+    Pass your API key in the `X-API-Key` header on every `/v1/` request.
+    Demo keys for testing:
+    - `ik_free_demo_key_123` — 100 req/day
+    - `ik_starter_demo_key_456` — 1,000 req/day
+    - `ik_pro_demo_key_789` — 10,000 req/day
+
+  contact:
+    name: IntellectKit Support
+    url: https://api.intellectkit.dev
+  license:
+    name: Proprietary
+
+servers:
+  - url: https://api.intellectkit.dev
+    description: Production
+
+security:
+  - ApiKeyAuth: []
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: |
+        Your IntellectKit API key. Format: `ik_<tier>_<key>`.
+        Obtain a key at https://api.intellectkit.dev.
+
+  schemas:
+    # ── Shared ─────────────────────────────────────────────────
+    ErrorResponse:
+      type: object
+      required: [error, reason]
+      properties:
+        error:
+          type: string
+          example: Bad Request
+        reason:
+          type: string
+          example: "Missing required query parameter: url"
+
+    # ── Extract ────────────────────────────────────────────────
+    ArticleExtractionResponse:
+      type: object
+      description: Extracted article content from a web page.
+      required: [url, extractedAt]
+      properties:
+        url:
+          type: string
+          format: uri
+          example: "https://example.com/article"
+        title:
+          type: string
+          nullable: true
+          example: "How AI Is Changing Software Development"
+        author:
+          type: string
+          nullable: true
+          example: "Jane Smith"
+        publishedDate:
+          type: string
+          nullable: true
+          example: "2024-03-15T09:00:00Z"
+        bodyText:
+          type: string
+          nullable: true
+          description: Full article body text with noise (nav, ads, footer) removed.
+          example: "The pace of AI adoption in software development..."
+        images:
+          type: array
+          items:
+            type: string
+            format: uri
+          example: ["https://example.com/images/hero.jpg"]
+        wordCount:
+          type: integer
+          nullable: true
+          example: 1240
+        readingTimeMinutes:
+          type: integer
+          nullable: true
+          example: 7
+        summary:
+          type: string
+          nullable: true
+          description: First ~300 characters of body text — useful as a preview for agents.
+          example: "The pace of AI adoption in software development has accelerated..."
+        extractedAt:
+          type: string
+          format: date-time
+          example: "2024-06-01T12:34:56Z"
+
+    ProductExtractionResponse:
+      type: object
+      description: Extracted product data from an e-commerce page.
+      required: [url, extractedAt]
+      properties:
+        url:
+          type: string
+          format: uri
+        name:
+          type: string
+          nullable: true
+          example: "Wireless Noise-Cancelling Headphones"
+        price:
+          type: string
+          nullable: true
+          example: "349.99"
+        currency:
+          type: string
+          nullable: true
+          example: "USD"
+        description:
+          type: string
+          nullable: true
+          example: "Premium over-ear headphones with 30-hour battery life."
+        images:
+          type: array
+          items:
+            type: string
+            format: uri
+        brand:
+          type: string
+          nullable: true
+          example: "SoundCo"
+        availability:
+          type: string
+          nullable: true
+          example: "InStock"
+        ratingValue:
+          type: string
+          nullable: true
+          example: "4.7"
+        reviewCount:
+          type: string
+          nullable: true
+          example: "2341"
+        extractedAt:
+          type: string
+          format: date-time
+
+    MetadataExtractionResponse:
+      type: object
+      description: Open Graph, Twitter card, JSON-LD, and other metadata from a page.
+      required: [url, ogTags, twitterTags, jsonLD, extractedAt]
+      properties:
+        url:
+          type: string
+          format: uri
+        title:
+          type: string
+          nullable: true
+          example: "Example Domain"
+        description:
+          type: string
+          nullable: true
+          example: "This domain is for illustrative examples."
+        ogTags:
+          type: object
+          additionalProperties:
+            type: string
+          example:
+            og:title: "Example Domain"
+            og:type: "website"
+        twitterTags:
+          type: object
+          additionalProperties:
+            type: string
+          example:
+            twitter:card: "summary_large_image"
+        canonicalURL:
+          type: string
+          format: uri
+          nullable: true
+        language:
+          type: string
+          nullable: true
+          example: "en"
+        favicon:
+          type: string
+          format: uri
+          nullable: true
+        jsonLD:
+          type: array
+          description: Raw JSON-LD script contents as strings.
+          items:
+            type: string
+        extractedAt:
+          type: string
+          format: date-time
+
+    ExtractedLink:
+      type: object
+      required: [href, isExternal]
+      properties:
+        href:
+          type: string
+          format: uri
+          example: "https://example.com/about"
+        text:
+          type: string
+          nullable: true
+          example: "About Us"
+        rel:
+          type: string
+          nullable: true
+          example: "noopener"
+        isExternal:
+          type: boolean
+          example: false
+
+    LinksExtractionResponse:
+      type: object
+      required: [url, totalLinks, internalLinks, externalLinks, links, extractedAt]
+      properties:
+        url:
+          type: string
+          format: uri
+        totalLinks:
+          type: integer
+          example: 42
+        internalLinks:
+          type: integer
+          example: 18
+        externalLinks:
+          type: integer
+          example: 24
+        links:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExtractedLink'
+        extractedAt:
+          type: string
+          format: date-time
+
+    TextExtractionResponse:
+      type: object
+      description: Clean readable text with navigation, ads, and UI chrome stripped.
+      required: [url, text, wordCount, characterCount, extractedAt]
+      properties:
+        url:
+          type: string
+          format: uri
+        text:
+          type: string
+          description: Stripped prose text, ready for LLM consumption.
+          example: "Welcome to Example Domain. This domain is for use in illustrative examples..."
+        wordCount:
+          type: integer
+          example: 312
+        characterCount:
+          type: integer
+          example: 1847
+        extractedAt:
+          type: string
+          format: date-time
+
+    # ── Tools ──────────────────────────────────────────────────
+    EmailValidationResponse:
+      type: object
+      required: [email, isValid]
+      properties:
+        email:
+          type: string
+          example: "user@example.com"
+        isValid:
+          type: boolean
+          example: true
+        reason:
+          type: string
+          nullable: true
+          description: Human-readable explanation when isValid is false.
+          example: "Domain part is missing"
+        domain:
+          type: string
+          nullable: true
+          example: "example.com"
+        local:
+          type: string
+          nullable: true
+          description: The part before the @ symbol.
+          example: "user"
+
+    DNSRecord:
+      type: object
+      required: [type, value]
+      properties:
+        type:
+          type: string
+          enum: [A, MX, TXT, NS, CNAME]
+          example: "A"
+        value:
+          type: string
+          example: "93.184.216.34"
+
+    DNSLookupResponse:
+      type: object
+      required: [domain, records, checkedAt]
+      properties:
+        domain:
+          type: string
+          example: "example.com"
+        records:
+          type: array
+          items:
+            $ref: '#/components/schemas/DNSRecord'
+        checkedAt:
+          type: string
+          format: date-time
+
+    # ── Stub responses ─────────────────────────────────────────
+    ComingSoonResponse:
+      type: object
+      required: [status, message]
+      properties:
+        status:
+          type: string
+          example: "coming_soon"
+        message:
+          type: string
+          example: "This endpoint is under development."
+
+paths:
+  /health:
+    get:
+      operationId: getHealth
+      summary: Health check
+      description: Returns service status. No authentication required.
+      security: []
+      tags: [System]
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  service:
+                    type: string
+                    example: intellectkit-api
+
+  /v1/openapi:
+    get:
+      operationId: getOpenAPISpec
+      summary: OpenAPI specification
+      description: Returns this OpenAPI 3.0 specification in YAML. No authentication required.
+      security: []
+      tags: [System]
+      responses:
+        '200':
+          description: OpenAPI YAML spec
+          content:
+            application/yaml:
+              schema:
+                type: string
+
+  # ── Extraction endpoints ──────────────────────────────────────
+  /v1/extract/article:
+    get:
+      operationId: extractArticle
+      summary: Extract article content
+      description: |
+        Extracts structured article data from a web page URL.
+
+        Returns title, author, publish date, clean body text, images, word count,
+        estimated reading time, and a short summary.
+
+        **Agent tip:** Use the `summary` field for quick relevance checks before
+        processing the full `bodyText`.
+      tags: [Extraction]
+      parameters:
+        - name: url
+          in: query
+          required: true
+          description: The URL of the article to extract. Must start with http:// or https://.
+          schema:
+            type: string
+            format: uri
+          example: "https://techcrunch.com/2024/01/15/ai-trends"
+      responses:
+        '200':
+          description: Article extracted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArticleExtractionResponse'
+              example:
+                url: "https://techcrunch.com/2024/01/15/ai-trends"
+                title: "The Top AI Trends of 2024"
+                author: "Sarah Connor"
+                publishedDate: "2024-01-15T08:00:00Z"
+                bodyText: "Artificial intelligence continued to reshape..."
+                images: ["https://techcrunch.com/wp-content/uploads/2024/01/ai-hero.jpg"]
+                wordCount: 1450
+                readingTimeMinutes: 8
+                summary: "Artificial intelligence continued to reshape industries in 2024..."
+                extractedAt: "2024-06-01T12:00:00Z"
+        '400':
+          description: Missing or invalid url parameter
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Missing or invalid API key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Daily rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '502':
+          description: Could not fetch the target URL
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/extract/product:
+    get:
+      operationId: extractProduct
+      summary: Extract product data
+      description: |
+        Extracts structured product information from an e-commerce page.
+
+        Uses structured data (Schema.org), Open Graph tags, and heuristic fallbacks
+        to extract name, price, currency, brand, availability, rating, and images.
+
+        **Agent tip:** Works best on product detail pages. Category/listing pages
+        will return partial data for the first product found.
+      tags: [Extraction]
+      parameters:
+        - name: url
+          in: query
+          required: true
+          description: The URL of the product page to extract.
+          schema:
+            type: string
+            format: uri
+          example: "https://www.amazon.com/dp/B09N3ZTJN9"
+      responses:
+        '200':
+          description: Product data extracted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductExtractionResponse'
+        '400':
+          description: Missing or invalid url parameter
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Missing or invalid API key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Daily rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '502':
+          description: Could not fetch the target URL
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/extract/metadata:
+    get:
+      operationId: extractMetadata
+      summary: Extract page metadata
+      description: |
+        Extracts Open Graph tags, Twitter card tags, JSON-LD structured data,
+        canonical URL, language, and favicon from any web page.
+
+        **Agent tip:** JSON-LD fields often contain rich structured data
+        (Organization, Article, Product, BreadcrumbList) that LLMs can reason over directly.
+      tags: [Extraction]
+      parameters:
+        - name: url
+          in: query
+          required: true
+          description: The URL of the page to extract metadata from.
+          schema:
+            type: string
+            format: uri
+          example: "https://stripe.com"
+      responses:
+        '200':
+          description: Metadata extracted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MetadataExtractionResponse'
+        '400':
+          description: Missing or invalid url parameter
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Missing or invalid API key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Daily rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '502':
+          description: Could not fetch the target URL
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/extract/links:
+    get:
+      operationId: extractLinks
+      summary: Extract all links from a page
+      description: |
+        Extracts all hyperlinks from a web page, classified as internal or external,
+        with anchor text and rel attributes.
+
+        Filters out fragment-only links, javascript:, mailto:, and tel: links.
+
+        **Agent tip:** Use `isExternal: false` links to discover internal site structure.
+        Use `isExternal: true` links to find what sources a page references.
+      tags: [Extraction]
+      parameters:
+        - name: url
+          in: query
+          required: true
+          description: The URL of the page to extract links from.
+          schema:
+            type: string
+            format: uri
+          example: "https://news.ycombinator.com"
+      responses:
+        '200':
+          description: Links extracted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LinksExtractionResponse'
+        '400':
+          description: Missing or invalid url parameter
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Missing or invalid API key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Daily rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '502':
+          description: Could not fetch the target URL
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/extract/text:
+    get:
+      operationId: extractText
+      summary: Extract clean readable text
+      description: |
+        Strips navigation, headers, footers, sidebars, ads, cookie banners, and
+        other UI chrome, returning only the readable prose from the page.
+
+        **Agent tip:** This is the most token-efficient extraction endpoint — ideal
+        for feeding page content directly into an LLM context window. Returns word
+        count so agents can estimate token usage before processing.
+      tags: [Extraction]
+      parameters:
+        - name: url
+          in: query
+          required: true
+          description: The URL of the page to extract text from.
+          schema:
+            type: string
+            format: uri
+          example: "https://en.wikipedia.org/wiki/Artificial_intelligence"
+      responses:
+        '200':
+          description: Text extracted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TextExtractionResponse'
+        '400':
+          description: Missing or invalid url parameter
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Missing or invalid API key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Daily rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '502':
+          description: Could not fetch the target URL
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # ── Tools endpoints ───────────────────────────────────────────
+  /v1/tools/validate-email:
+    get:
+      operationId: validateEmail
+      summary: Validate an email address
+      description: |
+        Validates an email address format using RFC 5321 rules.
+
+        Checks for: @ symbol presence, non-empty local part, valid domain format,
+        length limits (local max 64 chars, total max 254 chars), and regex pattern.
+
+        **Agent tip:** Use `isValid: false` + `reason` to give users a specific,
+        actionable error message rather than a generic "invalid email" response.
+      tags: [Tools]
+      parameters:
+        - name: email
+          in: query
+          required: true
+          description: The email address to validate.
+          schema:
+            type: string
+          example: "user@example.com"
+      responses:
+        '200':
+          description: Validation result (always 200 — check isValid field)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmailValidationResponse'
+              examples:
+                valid:
+                  summary: Valid email
+                  value:
+                    email: "user@example.com"
+                    isValid: true
+                    reason: null
+                    domain: "example.com"
+                    local: "user"
+                invalid:
+                  summary: Invalid email
+                  value:
+                    email: "not-an-email"
+                    isValid: false
+                    reason: "Missing @ symbol"
+                    domain: null
+                    local: null
+        '400':
+          description: Missing email query parameter
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Missing or invalid API key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Daily rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/tools/dns:
+    get:
+      operationId: dnsLookup
+      summary: Look up DNS records for a domain
+      description: |
+        Queries A, MX, TXT, NS, and CNAME records for any domain using `dig`.
+
+        **Agent tip:** Use TXT records to verify domain ownership or find SPF/DKIM
+        configuration. Use MX records to identify the email provider for a domain.
+        Use A records to resolve a domain to its IP address.
+      tags: [Tools]
+      parameters:
+        - name: domain
+          in: query
+          required: true
+          description: The domain name to look up (e.g. example.com, not a full URL).
+          schema:
+            type: string
+          example: "example.com"
+      responses:
+        '200':
+          description: DNS records retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DNSLookupResponse'
+              example:
+                domain: "example.com"
+                records:
+                  - type: "A"
+                    value: "93.184.216.34"
+                  - type: "MX"
+                    value: "0 ."
+                  - type: "NS"
+                    value: "a.iana-servers.net."
+                checkedAt: "2024-06-01T12:00:00Z"
+        '400':
+          description: Missing or invalid domain parameter
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Missing or invalid API key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Daily rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # ── Stub / coming-soon endpoints ──────────────────────────────
+  /v1/tools/screenshot:
+    get:
+      operationId: takeScreenshot
+      summary: Capture a webpage screenshot (coming soon)
+      description: |
+        Captures a full-page or viewport screenshot of a URL and returns a PNG.
+
+        **Status:** Under development. Returns 501 Not Implemented.
+      tags: [Tools]
+      parameters:
+        - name: url
+          in: query
+          required: true
+          description: The URL to screenshot.
+          schema:
+            type: string
+            format: uri
+      responses:
+        '501':
+          description: Not yet implemented
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComingSoonResponse'
+        '401':
+          description: Missing or invalid API key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/tools/pdf:
+    get:
+      operationId: extractPDF
+      summary: Extract text from a PDF URL (coming soon)
+      description: |
+        Downloads a PDF from a URL and extracts its text content.
+
+        **Status:** Under development. Returns 501 Not Implemented.
+      tags: [Tools]
+      parameters:
+        - name: url
+          in: query
+          required: true
+          description: A direct URL to a PDF file.
+          schema:
+            type: string
+            format: uri
+      responses:
+        '501':
+          description: Not yet implemented
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComingSoonResponse'
+        '401':
+          description: Missing or invalid API key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/tools/html-to-pdf:
+    get:
+      operationId: htmlToPDF
+      summary: Convert a webpage to PDF (coming soon)
+      description: |
+        Renders a URL to PDF using a headless browser and returns the PDF file.
+
+        **Status:** Under development. Returns 501 Not Implemented.
+      tags: [Tools]
+      parameters:
+        - name: url
+          in: query
+          required: true
+          description: The URL to convert to PDF.
+          schema:
+            type: string
+            format: uri
+      responses:
+        '501':
+          description: Not yet implemented
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComingSoonResponse'
+        '401':
+          description: Missing or invalid API key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+tags:
+  - name: System
+    description: Health and discovery endpoints (no auth required)
+  - name: Extraction
+    description: Extract structured data from web pages
+  - name: Tools
+    description: Developer utility tools

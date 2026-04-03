@@ -10,6 +10,14 @@ public func routes(_ app: Application) throws {
     // MARK: - Health check (no auth required)
     app.get("health") { _ in ["status": "ok", "service": "intellectkit-api"] }
 
+    // MARK: - OpenAPI spec (public, no auth required)
+    app.get("v1", "openapi") { req async throws -> Response in
+        let path = req.application.directory.publicDirectory + "openapi.yaml"
+        let response = req.fileio.streamFile(at: path)
+        response.headers.contentType = HTTPMediaType(type: "application", subType: "yaml")
+        return response
+    }
+
     // MARK: - API v1 — protected by API key middleware
     let v1 = app.grouped("v1").grouped(APIKeyMiddleware())
 
