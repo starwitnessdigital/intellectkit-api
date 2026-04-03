@@ -35,4 +35,10 @@ public func routes(_ app: Application) throws {
     let toolsGroup = v1.grouped("tools")
     toolsGroup.get("validate-email", use: tools.validateEmail)
     toolsGroup.get("dns", use: tools.dns)
+    toolsGroup.get("whois", use: tools.whois)
+    toolsGroup.get("headers", use: tools.httpHeaders)
+    toolsGroup.get("robots", use: tools.robots)
+    toolsGroup.get("sitemap", use: tools.sitemap)
+    toolsGroup.get("social", use: tools.social)
+    toolsGroup.get("tech-stack", use: tools.techStack)
 }
