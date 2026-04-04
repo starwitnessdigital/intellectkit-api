@@ -69,6 +69,13 @@ Once connected, Claude will have these tools available:
 - `extract_text` — Get clean readable text from any URL
 - `validate_email` — Validate an email address format
 - `dns_lookup` — Look up DNS records for a domain
+- `ip_info` — IP geolocation: country, city, ISP, AS number, lat/lon
+- `ssl_info` — SSL certificate details and days until expiry
+- `url_info` — Parse URL components and follow redirect chain
+- `hash_text` — Hash text with md5, sha1, sha256, or sha512
+- `encode_text` — Encode text as base64, URL-encoded, or HTML entities
+- `decode_text` — Decode base64, URL-encoded, or HTML entity text
+- `json_validate` — Validate JSON and summarize its structure
 
 ---
 
@@ -230,6 +237,175 @@ Add these to your `tools` array in the ChatCompletion API request:
 }
 ```
 
+### ip_info
+
+```json
+{
+  "type": "function",
+  "function": {
+    "name": "ip_info",
+    "description": "Get geolocation and network data for an IP address. Returns country, region, city, ISP, organization, AS number, timezone, and lat/lon coordinates.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "ip": {
+          "type": "string",
+          "description": "IPv4 or IPv6 address to look up (e.g. 8.8.8.8)"
+        }
+      },
+      "required": ["ip"]
+    }
+  }
+}
+```
+
+### ssl_info
+
+```json
+{
+  "type": "function",
+  "function": {
+    "name": "ssl_info",
+    "description": "Retrieve SSL/TLS certificate details for a domain. Returns issuer, subject, validity dates, days until expiry, serial number, and signature algorithm. A negative daysUntilExpiry means the certificate is already expired.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "domain": {
+          "type": "string",
+          "description": "Domain to check (e.g. example.com — no https:// prefix)"
+        }
+      },
+      "required": ["domain"]
+    }
+  }
+}
+```
+
+### url_info
+
+```json
+{
+  "type": "function",
+  "function": {
+    "name": "url_info",
+    "description": "Parse a URL into its components and follow any redirects. Returns scheme, domain, subdomain, path, query parameters as a key/value map, fragment, isHttps flag, and the full redirect chain with status codes.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "url": {
+          "type": "string",
+          "description": "The URL to analyze (must start with http:// or https://)"
+        }
+      },
+      "required": ["url"]
+    }
+  }
+}
+```
+
+### hash_text
+
+```json
+{
+  "type": "function",
+  "function": {
+    "name": "hash_text",
+    "description": "Hash text using a common algorithm. Supported: md5, sha1, sha256 (default), sha512. Useful for generating checksums, cache keys, or verifying content integrity.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "text": {
+          "type": "string",
+          "description": "Text to hash"
+        },
+        "algorithm": {
+          "type": "string",
+          "enum": ["md5", "sha1", "sha256", "sha512"],
+          "description": "Hash algorithm (default: sha256)"
+        }
+      },
+      "required": ["text"]
+    }
+  }
+}
+```
+
+### encode_text
+
+```json
+{
+  "type": "function",
+  "function": {
+    "name": "encode_text",
+    "description": "Encode text to base64, URL percent-encoding, or HTML entities. Useful for preparing values for transmission in URLs, HTML, or binary protocols.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "text": {
+          "type": "string",
+          "description": "Text to encode"
+        },
+        "format": {
+          "type": "string",
+          "enum": ["base64", "url", "html"],
+          "description": "Encoding format (default: base64)"
+        }
+      },
+      "required": ["text"]
+    }
+  }
+}
+```
+
+### decode_text
+
+```json
+{
+  "type": "function",
+  "function": {
+    "name": "decode_text",
+    "description": "Decode base64, URL percent-encoded, or HTML entity text back to plaintext. Useful for reading webhook payloads, JWT components, or escaped HTML.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "text": {
+          "type": "string",
+          "description": "Text to decode"
+        },
+        "format": {
+          "type": "string",
+          "enum": ["base64", "url", "html"],
+          "description": "Decoding format (default: base64)"
+        }
+      },
+      "required": ["text"]
+    }
+  }
+}
+```
+
+### json_validate
+
+```json
+{
+  "type": "function",
+  "function": {
+    "name": "json_validate",
+    "description": "Validate a JSON string and return a structure summary. Returns valid boolean, error message if invalid, and a summary of the top-level type, keys, array length, and nesting depth. Send the JSON as the request body.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "json": {
+          "type": "string",
+          "description": "The JSON string to validate (sent as raw request body)"
+        }
+      },
+      "required": ["json"]
+    }
+  }
+}
+```
+
 ---
 
 ## Anthropic tool_use schemas
@@ -288,6 +464,86 @@ INTELLECTKIT_TOOLS = [
             },
             "required": ["domain"]
         }
+    },
+    {
+        "name": "ip_info",
+        "description": "Get geolocation and network data for an IP address. Returns country, city, ISP, AS number, timezone, lat/lon.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "ip": {"type": "string", "description": "IPv4 or IPv6 address (e.g. 8.8.8.8)"}
+            },
+            "required": ["ip"]
+        }
+    },
+    {
+        "name": "ssl_info",
+        "description": "Get SSL certificate details for a domain: issuer, validity dates, days until expiry.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "domain": {"type": "string", "description": "Domain to check (e.g. example.com)"}
+            },
+            "required": ["domain"]
+        }
+    },
+    {
+        "name": "url_info",
+        "description": "Parse a URL and follow its redirect chain. Returns components and each redirect hop.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "url": {"type": "string", "description": "URL to analyze"}
+            },
+            "required": ["url"]
+        }
+    },
+    {
+        "name": "hash_text",
+        "description": "Hash text with md5, sha1, sha256, or sha512.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "text": {"type": "string", "description": "Text to hash"},
+                "algorithm": {"type": "string", "enum": ["md5", "sha1", "sha256", "sha512"], "description": "Algorithm (default: sha256)"}
+            },
+            "required": ["text"]
+        }
+    },
+    {
+        "name": "encode_text",
+        "description": "Encode text as base64, URL percent-encoding, or HTML entities.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "text": {"type": "string", "description": "Text to encode"},
+                "format": {"type": "string", "enum": ["base64", "url", "html"], "description": "Format (default: base64)"}
+            },
+            "required": ["text"]
+        }
+    },
+    {
+        "name": "decode_text",
+        "description": "Decode base64, URL percent-encoded, or HTML entity text.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "text": {"type": "string", "description": "Text to decode"},
+                "format": {"type": "string", "enum": ["base64", "url", "html"], "description": "Format (default: base64)"}
+            },
+            "required": ["text"]
+        }
+    },
+    {
+        "name": "json_validate",
+        "description": "Validate JSON and return structure summary (type, keys, depth, array length).",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "json": {"type": "string", "description": "JSON string to validate (sent as request body)"}
+            },
+            "required": ["json"]
+        }
     }
 ]
 
@@ -298,22 +554,54 @@ def call_intellectkit(tool_name: str, tool_input: dict) -> str:
     """Execute an IntellectKit tool call and return the JSON result as a string."""
     import requests
     endpoint_map = {
-        "extract_article":  "/v1/extract/article",
-        "extract_product":  "/v1/extract/product",
-        "extract_metadata": "/v1/extract/metadata",
-        "extract_links":    "/v1/extract/links",
-        "extract_text":     "/v1/extract/text",
-        "validate_email":   "/v1/tools/validate-email",
-        "dns_lookup":       "/v1/tools/dns",
+        "extract_article":  ("/v1/extract/article",  "get"),
+        "extract_product":  ("/v1/extract/product",  "get"),
+        "extract_metadata": ("/v1/extract/metadata", "get"),
+        "extract_links":    ("/v1/extract/links",    "get"),
+        "extract_text":     ("/v1/extract/text",     "get"),
+        "validate_email":   ("/v1/tools/validate-email", "get"),
+        "dns_lookup":       ("/v1/tools/dns",         "get"),
+        "ip_info":          ("/v1/tools/ip-info",     "get"),
+        "ssl_info":         ("/v1/tools/ssl",         "get"),
+        "url_info":         ("/v1/tools/url-info",    "get"),
+        "hash_text":        ("/v1/tools/hash",        "get"),
+        "encode_text":      ("/v1/tools/encode",      "get"),
+        "decode_text":      ("/v1/tools/decode",      "get"),
+        "json_validate":    ("/v1/tools/json-validate", "post"),
     }
-    path = endpoint_map[tool_name]
-    param_key = "email" if tool_name == "validate_email" else ("domain" if tool_name == "dns_lookup" else "url")
-    resp = requests.get(
-        INTELLECTKIT_BASE + path,
-        params={param_key: tool_input[param_key]},
-        headers={"X-API-Key": INTELLECTKIT_KEY},
-        timeout=15,
-    )
+    param_map = {
+        "validate_email": "email",
+        "dns_lookup": "domain",
+        "ip_info": "ip",
+        "ssl_info": "domain",
+        "url_info": "url",
+        "hash_text": "text",
+        "encode_text": "text",
+        "decode_text": "text",
+    }
+    path, method = endpoint_map[tool_name]
+    headers = {"X-API-Key": INTELLECTKIT_KEY}
+
+    if method == "post":
+        resp = requests.post(
+            INTELLECTKIT_BASE + path,
+            data=tool_input.get("json", ""),
+            headers={**headers, "Content-Type": "application/json"},
+            timeout=15,
+        )
+    else:
+        param_key = param_map.get(tool_name, "url")
+        params = {param_key: tool_input[param_key]}
+        if tool_name == "hash_text" and "algorithm" in tool_input:
+            params["algorithm"] = tool_input["algorithm"]
+        if tool_name in ("encode_text", "decode_text") and "format" in tool_input:
+            params["format"] = tool_input["format"]
+        resp = requests.get(
+            INTELLECTKIT_BASE + path,
+            params=params,
+            headers=headers,
+            timeout=15,
+        )
     return resp.text
 ```
 
@@ -396,6 +684,37 @@ calling the appropriate endpoint:
 - "Look up the A record for [domain]"
 - "Check the MX records to see what email provider [company] uses"
 
+**IP geolocation:**
+- "Where is this IP address located: 8.8.8.8?"
+- "Which country is this IP from?"
+- "What ISP or AS number owns this IP?"
+
+**SSL certificate:**
+- "Is the SSL certificate for example.com still valid?"
+- "When does the certificate for [domain] expire?"
+- "Check the SSL cert on [domain] — who issued it?"
+
+**URL analysis:**
+- "Where does this short link redirect to?"
+- "Parse the query parameters out of this URL"
+- "Does this URL use HTTPS? Does it redirect?"
+
+**Hashing:**
+- "Hash this string with SHA-256: hello world"
+- "Generate an MD5 checksum for [text]"
+- "What is the SHA-512 hash of [value]?"
+
+**Encoding/decoding:**
+- "Base64-encode this text: [text]"
+- "Decode this base64 string: [string]"
+- "URL-encode this value before adding it to a query string"
+- "Decode these HTML entities: &lt;b&gt;Hello&lt;/b&gt;"
+
+**JSON validation:**
+- "Is this JSON valid? [paste JSON]"
+- "What are the top-level keys in this JSON payload?"
+- "How deeply nested is this JSON structure?"
+
 ---
 
 ## Error handling for agents
@@ -429,3 +748,9 @@ HTTP status codes:
 | No browser dependency | ✓ | Playwright/Puppeteer |
 | Built-in rate limiting | ✓ | Implement yourself |
 | Email + DNS utilities | ✓ | Separate services |
+| IP geolocation | ✓ | Third-party accounts |
+| SSL cert inspection | ✓ | openssl shell commands |
+| URL parsing + redirects | ✓ | Custom code |
+| Hashing (md5/sha*) | ✓ | Language-specific libs |
+| Base64/URL/HTML encode | ✓ | Language-specific libs |
+| JSON validation | ✓ | Language-specific libs |

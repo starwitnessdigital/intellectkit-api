@@ -10,6 +10,8 @@ info:
     ## What this API does
     - **Extract** article content, product data, page metadata, links, and clean text from any URL
     - **Validate** email addresses and look up DNS records
+    - **Inspect** IP geolocation, SSL certificates, and URL redirect chains
+    - **Transform** text with hashing (md5/sha1/sha256/sha512), encoding/decoding (base64/URL/HTML), and JSON validation
 
     ## Agent integration
     All endpoints use GET requests with a single query parameter. Responses are typed JSON
@@ -327,6 +329,236 @@ components:
         checkedAt:
           type: string
           format: date-time
+
+    # ── New utility tools ─────────────────────────────────────
+    IPInfoResponse:
+      type: object
+      required: [ip, checkedAt]
+      properties:
+        ip:
+          type: string
+          example: "8.8.8.8"
+        country:
+          type: string
+          nullable: true
+          example: "United States"
+        countryCode:
+          type: string
+          nullable: true
+          example: "US"
+        region:
+          type: string
+          nullable: true
+          example: "VA"
+        regionName:
+          type: string
+          nullable: true
+          example: "Virginia"
+        city:
+          type: string
+          nullable: true
+          example: "Ashburn"
+        isp:
+          type: string
+          nullable: true
+          example: "Google LLC"
+        org:
+          type: string
+          nullable: true
+          example: "Google Public DNS"
+        asNumber:
+          type: string
+          nullable: true
+          example: "AS15169 Google LLC"
+        timezone:
+          type: string
+          nullable: true
+          example: "America/New_York"
+        lat:
+          type: number
+          nullable: true
+          example: 39.0438
+        lon:
+          type: number
+          nullable: true
+          example: -77.4874
+        checkedAt:
+          type: string
+          format: date-time
+
+    SSLInfoResponse:
+      type: object
+      required: [domain, checkedAt]
+      properties:
+        domain:
+          type: string
+          example: "example.com"
+        issuer:
+          type: string
+          nullable: true
+          example: "C=US, O=DigiCert Inc, CN=DigiCert Global G2 TLS RSA SHA256 2020 CA1"
+        subject:
+          type: string
+          nullable: true
+          example: "CN=example.com"
+        validFrom:
+          type: string
+          nullable: true
+          example: "Jan 15 00:00:00 2024 GMT"
+        validTo:
+          type: string
+          nullable: true
+          example: "Feb 15 23:59:59 2025 GMT"
+        daysUntilExpiry:
+          type: integer
+          nullable: true
+          example: 120
+        serialNumber:
+          type: string
+          nullable: true
+          example: "0F3E4A2B1C..."
+        signatureAlgorithm:
+          type: string
+          nullable: true
+          example: "sha256WithRSAEncryption"
+        checkedAt:
+          type: string
+          format: date-time
+
+    RedirectHop:
+      type: object
+      required: [url, statusCode]
+      properties:
+        url:
+          type: string
+          format: uri
+          example: "http://example.com"
+        statusCode:
+          type: integer
+          example: 301
+
+    URLInfoResponse:
+      type: object
+      required: [url, queryParams, isHttps, redirectChain, checkedAt]
+      properties:
+        url:
+          type: string
+          format: uri
+        scheme:
+          type: string
+          nullable: true
+          example: "https"
+        domain:
+          type: string
+          nullable: true
+          example: "api.example.com"
+        subdomain:
+          type: string
+          nullable: true
+          example: "api"
+        path:
+          type: string
+          nullable: true
+          example: "/v1/users"
+        queryParams:
+          type: object
+          additionalProperties:
+            type: string
+          example:
+            page: "2"
+            limit: "10"
+        fragment:
+          type: string
+          nullable: true
+          example: "section-2"
+        isHttps:
+          type: boolean
+          example: true
+        redirectChain:
+          type: array
+          description: Each hop followed during redirect resolution, including the final destination.
+          items:
+            $ref: '#/components/schemas/RedirectHop'
+        checkedAt:
+          type: string
+          format: date-time
+
+    HashResponse:
+      type: object
+      required: [text, algorithm, hash]
+      properties:
+        text:
+          type: string
+          example: "hello"
+        algorithm:
+          type: string
+          enum: [md5, sha1, sha256, sha512]
+          example: "sha256"
+        hash:
+          type: string
+          example: "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824"
+
+    EncodeDecodeResponse:
+      type: object
+      required: [input, output, format, operation]
+      properties:
+        input:
+          type: string
+          example: "hello world"
+        output:
+          type: string
+          example: "aGVsbG8gd29ybGQ="
+        format:
+          type: string
+          enum: [base64, url, html]
+          example: "base64"
+        operation:
+          type: string
+          enum: [encode, decode]
+          example: "encode"
+
+    JSONStructureSummary:
+      type: object
+      required: [type, depth]
+      properties:
+        type:
+          type: string
+          enum: [object, array, scalar]
+          example: "object"
+        keyCount:
+          type: integer
+          nullable: true
+          example: 5
+        keys:
+          type: array
+          nullable: true
+          items:
+            type: string
+          example: ["id", "name", "email"]
+        arrayLength:
+          type: integer
+          nullable: true
+          example: 3
+        depth:
+          type: integer
+          description: Maximum nesting depth of the JSON structure.
+          example: 2
+
+    JSONValidateResponse:
+      type: object
+      required: [valid]
+      properties:
+        valid:
+          type: boolean
+          example: true
+        error:
+          type: string
+          nullable: true
+          description: Parse error message when valid is false.
+          example: "The data couldn't be read because it isn't in the correct format."
+        structure:
+          nullable: true
+          $ref: '#/components/schemas/JSONStructureSummary'
 
     # ── Stub responses ─────────────────────────────────────────
     ComingSoonResponse:
@@ -760,6 +992,425 @@ paths:
                 checkedAt: "2024-06-01T12:00:00Z"
         '400':
           description: Missing or invalid domain parameter
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Missing or invalid API key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Daily rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/tools/ip-info:
+    get:
+      operationId: ipInfo
+      summary: IP geolocation and network info
+      description: |
+        Returns geolocation and network data for an IPv4 or IPv6 address.
+        Uses ip-api.com (free, no key required, ~45 req/min from server-side).
+
+        Returns country, region, city, ISP, organization, AS number, timezone, and lat/lon.
+
+        **Agent tip:** Pass `ip=self` or omit the ip parameter to look up the request's own IP.
+        Useful for agents that need to geolocate user-provided addresses for fraud scoring,
+        content personalization, or shipping restriction checks.
+      tags: [Tools]
+      parameters:
+        - name: ip
+          in: query
+          required: true
+          description: IPv4 or IPv6 address to look up.
+          schema:
+            type: string
+          example: "8.8.8.8"
+      responses:
+        '200':
+          description: IP info retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IPInfoResponse'
+              example:
+                ip: "8.8.8.8"
+                country: "United States"
+                countryCode: "US"
+                region: "VA"
+                regionName: "Virginia"
+                city: "Ashburn"
+                isp: "Google LLC"
+                org: "Google Public DNS"
+                asNumber: "AS15169 Google LLC"
+                timezone: "America/New_York"
+                lat: 39.0438
+                lon: -77.4874
+                checkedAt: "2024-06-01T12:00:00Z"
+        '400':
+          description: Missing or invalid ip parameter
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Missing or invalid API key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Daily rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '502':
+          description: IP geolocation service unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/tools/ssl:
+    get:
+      operationId: sslInfo
+      summary: SSL certificate info for a domain
+      description: |
+        Connects to the domain on port 443 and reads the TLS certificate details.
+
+        Returns issuer, subject, validity period, days until expiry, serial number,
+        and signature algorithm.
+
+        **Agent tip:** Check `daysUntilExpiry` to alert on soon-to-expire certificates
+        (common threshold: 30 days). A negative value means the certificate has already expired.
+      tags: [Tools]
+      parameters:
+        - name: domain
+          in: query
+          required: true
+          description: Domain name to check (e.g. example.com — no https:// prefix).
+          schema:
+            type: string
+          example: "example.com"
+      responses:
+        '200':
+          description: SSL certificate info retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SSLInfoResponse'
+        '400':
+          description: Missing or invalid domain parameter
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Missing or invalid API key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Daily rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/tools/url-info:
+    get:
+      operationId: urlInfo
+      summary: Parse and analyze a URL
+      description: |
+        Parses the URL into its components and follows any redirects to build the full chain.
+
+        Returns scheme, domain, subdomain, path, query parameters (as a key/value map),
+        fragment, isHttps flag, and the redirect chain with status codes.
+
+        **Agent tip:** Use `redirectChain` to detect URL shorteners, affiliate trackers,
+        or unexpected third-party redirects. Use `queryParams` to extract UTM parameters
+        or paginated API call parameters without writing a URL parser.
+      tags: [Tools]
+      parameters:
+        - name: url
+          in: query
+          required: true
+          description: The URL to analyze. Must start with http:// or https://.
+          schema:
+            type: string
+            format: uri
+          example: "https://api.example.com/v1/users?page=2&limit=10#results"
+      responses:
+        '200':
+          description: URL parsed and analyzed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/URLInfoResponse'
+        '400':
+          description: Missing or invalid url parameter
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Missing or invalid API key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Daily rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/tools/hash:
+    get:
+      operationId: hashText
+      summary: Hash text with common algorithms
+      description: |
+        Computes a hash of the input text using the specified algorithm.
+
+        Supported algorithms: `md5`, `sha1`, `sha256` (default), `sha512`.
+
+        **Agent tip:** Use `sha256` for integrity verification and checksums.
+        Use `md5` only for legacy compatibility — not for security purposes.
+        Useful for generating cache keys, content fingerprints, or verifying
+        that a value matches an expected hash without storing the plaintext.
+      tags: [Tools]
+      parameters:
+        - name: text
+          in: query
+          required: true
+          description: The text to hash.
+          schema:
+            type: string
+          example: "hello"
+        - name: algorithm
+          in: query
+          required: false
+          description: Hash algorithm. Defaults to sha256.
+          schema:
+            type: string
+            enum: [md5, sha1, sha256, sha512]
+            default: sha256
+          example: "sha256"
+      responses:
+        '200':
+          description: Hash computed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HashResponse'
+              example:
+                text: "hello"
+                algorithm: "sha256"
+                hash: "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824"
+        '400':
+          description: Missing text parameter or unsupported algorithm
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Missing or invalid API key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Daily rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/tools/encode:
+    get:
+      operationId: encodeText
+      summary: Encode text (base64, URL, HTML)
+      description: |
+        Encodes text using the specified format.
+
+        Supported formats:
+        - `base64` — Standard base64 encoding (RFC 4648)
+        - `url` — Percent-encoding for query strings
+        - `html` — HTML entity encoding (&amp;, &lt;, &gt;, &quot;, &#39;)
+
+        **Agent tip:** Use `url` encoding before inserting user-provided values into
+        query strings. Use `html` encoding before inserting untrusted text into HTML.
+      tags: [Tools]
+      parameters:
+        - name: text
+          in: query
+          required: true
+          description: The text to encode.
+          schema:
+            type: string
+          example: "hello world"
+        - name: format
+          in: query
+          required: false
+          description: Encoding format. Defaults to base64.
+          schema:
+            type: string
+            enum: [base64, url, html]
+            default: base64
+          example: "base64"
+      responses:
+        '200':
+          description: Text encoded successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EncodeDecodeResponse'
+              example:
+                input: "hello world"
+                output: "aGVsbG8gd29ybGQ="
+                format: "base64"
+                operation: "encode"
+        '400':
+          description: Missing text or unsupported format
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Missing or invalid API key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Daily rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/tools/decode:
+    get:
+      operationId: decodeText
+      summary: Decode text (base64, URL, HTML)
+      description: |
+        Decodes text using the specified format.
+
+        Supported formats:
+        - `base64` — Standard base64 decoding (accepts padding variations)
+        - `url` — Percent-decoding
+        - `html` — HTML entity decoding (&amp;, &lt;, &gt;, &quot;, &#39;, &nbsp;, etc.)
+
+        **Agent tip:** Use this when you receive base64-encoded webhook payloads, JWT
+        components, or URL-encoded form data that needs to be read as plain text.
+      tags: [Tools]
+      parameters:
+        - name: text
+          in: query
+          required: true
+          description: The text to decode.
+          schema:
+            type: string
+          example: "aGVsbG8gd29ybGQ="
+        - name: format
+          in: query
+          required: false
+          description: Decoding format. Defaults to base64.
+          schema:
+            type: string
+            enum: [base64, url, html]
+            default: base64
+          example: "base64"
+      responses:
+        '200':
+          description: Text decoded successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EncodeDecodeResponse'
+              example:
+                input: "aGVsbG8gd29ybGQ="
+                output: "hello world"
+                format: "base64"
+                operation: "decode"
+        '400':
+          description: Missing text, unsupported format, or invalid encoded input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Missing or invalid API key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Daily rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/tools/json-validate:
+    post:
+      operationId: jsonValidate
+      summary: Validate JSON and summarize structure
+      description: |
+        Send raw JSON in the request body. Returns whether it parses successfully,
+        an error message if not, and a structure summary (type, top-level keys, depth,
+        array length).
+
+        **Agent tip:** Use before storing or forwarding untrusted JSON payloads.
+        The `structure` summary lets agents understand the shape of large JSON blobs
+        without processing the full payload — useful for routing decisions or schema matching.
+      tags: [Tools]
+      requestBody:
+        required: true
+        description: Raw JSON to validate. Send as plain `application/json` body.
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              name: "Alice"
+              age: 30
+              tags: ["admin", "user"]
+      responses:
+        '200':
+          description: Validation result (always 200 — check valid field)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JSONValidateResponse'
+              examples:
+                valid:
+                  summary: Valid JSON
+                  value:
+                    valid: true
+                    error: null
+                    structure:
+                      type: object
+                      keyCount: 3
+                      keys: ["age", "name", "tags"]
+                      arrayLength: null
+                      depth: 2
+                invalid:
+                  summary: Invalid JSON
+                  value:
+                    valid: false
+                    error: "The data couldn't be read because it isn't in the correct format."
+                    structure: null
+        '400':
+          description: Empty or missing request body
           content:
             application/json:
               schema:

@@ -35,4 +35,11 @@ public func routes(_ app: Application) throws {
     let toolsGroup = v1.grouped("tools")
     toolsGroup.get("validate-email", use: tools.validateEmail)
     toolsGroup.get("dns", use: tools.dns)
+    toolsGroup.get("ip-info", use: tools.ipInfo)
+    toolsGroup.get("ssl", use: tools.ssl)
+    toolsGroup.get("url-info", use: tools.urlInfo)
+    toolsGroup.get("hash", use: tools.hash)
+    toolsGroup.get("encode", use: tools.encode)
+    toolsGroup.get("decode", use: tools.decode)
+    toolsGroup.post("json-validate", use: tools.jsonValidate)
 }
