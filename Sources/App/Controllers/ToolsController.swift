@@ -1,6 +1,9 @@
 import Vapor
 import SwiftSoup
 import Foundation
+#if canImport(FoundationXML)
+import FoundationXML
+#endif
 
 /// Developer utility tool endpoints.
 ///
