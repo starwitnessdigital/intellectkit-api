@@ -134,3 +134,77 @@ struct TechStackResponse: Content {
     let detected: [String]
     let checkedAt: String
 }
+
+// MARK: - Markdown to HTML
+
+struct MarkdownToHtmlRequest: Content {
+    let markdown: String
+}
+
+struct MarkdownToHtmlResponse: Content {
+    let html: String
+    let characterCount: Int
+    let convertedAt: String
+}
+
+// MARK: - Color Info
+
+struct RGBColor: Content {
+    let r: Int
+    let g: Int
+    let b: Int
+    let css: String
+}
+
+struct HSLColor: Content {
+    let h: Double
+    let s: Double
+    let l: Double
+    let css: String
+}
+
+struct ColorInfoResponse: Content {
+    let hex: String
+    let rgb: RGBColor
+    let hsl: HSLColor
+    let name: String
+    let complementary: String
+    let triadic: [String]
+}
+
+// MARK: - Timestamp
+
+struct TimestampResponse: Content {
+    let unix: Int
+    let iso: String
+    let rfc2822: String
+    let human: String
+    let formatted: String
+}
+
+// MARK: - Random
+
+struct RandomResponse: Content {
+    let type: String
+    let value: String
+}
+
+// MARK: - Diff
+
+struct DiffRequest: Content {
+    let text1: String
+    let text2: String
+}
+
+struct DiffLine: Content {
+    let type: String
+    let content: String
+}
+
+struct DiffResponse: Content {
+    let additions: Int
+    let deletions: Int
+    let unchanged: Int
+    let similarity: Double
+    let diff: [DiffLine]
+}

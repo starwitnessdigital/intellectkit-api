@@ -39,6 +39,16 @@ struct ExtractionController {
         return try service.extractText()
     }
 
+    func structured(req: Request) async throws -> StructuredExtractionResponse {
+        let url = try validatedURL(req)
+        guard let schema = req.query[String.self, at: "schema"], !schema.isEmpty else {
+            throw Abort(.badRequest,
+                        reason: "Missing required query parameter: schema. Valid values: product, article, recipe, event, person, organization")
+        }
+        let service = try await WebExtractionService.fetch(url: url, client: req.client)
+        return try service.extractStructured(schema: schema)
+    }
+
     // MARK: - Helpers
 
     private func validatedURL(_ req: Request) throws -> String {

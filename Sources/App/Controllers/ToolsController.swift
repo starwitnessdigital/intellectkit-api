@@ -483,6 +483,176 @@ struct ToolsController {
         )
     }
 
+    // MARK: - Markdown to HTML
+
+    func markdownToHtml(req: Request) async throws -> MarkdownToHtmlResponse {
+        let body = try req.content.decode(MarkdownToHtmlRequest.self)
+        guard !body.markdown.isEmpty else {
+            throw Abort(.badRequest, reason: "markdown field is required and cannot be empty")
+        }
+        let html = convertMarkdown(body.markdown)
+        return MarkdownToHtmlResponse(
+            html: html,
+            characterCount: html.count,
+            convertedAt: ISO8601DateFormatter().string(from: Date())
+        )
+    }
+
+    // MARK: - Color Info
+
+    func colorInfo(req: Request) async throws -> ColorInfoResponse {
+        guard let hex = req.query[String.self, at: "hex"], !hex.isEmpty else {
+            throw Abort(.badRequest, reason: "Missing required query parameter: hex")
+        }
+
+        let cleanHex = hex.trimmingCharacters(in: .whitespaces)
+            .uppercased()
+            .replacingOccurrences(of: "#", with: "")
+
+        let normalHex: String
+        if cleanHex.count == 3 {
+            let chars = Array(cleanHex)
+            normalHex = "\(chars[0])\(chars[0])\(chars[1])\(chars[1])\(chars[2])\(chars[2])"
+        } else if cleanHex.count == 6 {
+            normalHex = cleanHex
+        } else {
+            throw Abort(.badRequest, reason: "Invalid hex color. Expected 3 or 6 hex digits (e.g., FF5733 or F53)")
+        }
+
+        guard normalHex.range(of: #"^[0-9A-F]{6}$"#, options: .regularExpression) != nil else {
+            throw Abort(.badRequest, reason: "Invalid hex color. Only hex characters (0-9, A-F) are allowed")
+        }
+
+        let r = Int(normalHex.prefix(2), radix: 16)!
+        let g = Int(normalHex.dropFirst(2).prefix(2), radix: 16)!
+        let b = Int(normalHex.dropFirst(4).prefix(2), radix: 16)!
+
+        let (h, s, l) = rgbToHSL(r: r, g: g, b: b)
+
+        let rgb = RGBColor(r: r, g: g, b: b, css: "rgb(\(r), \(g), \(b))")
+        let hsl = HSLColor(h: h, s: s, l: l, css: "hsl(\(Int(h)), \(Int(s))%, \(Int(l))%)")
+
+        let name = closestColorName(r: r, g: g, b: b)
+
+        let compHue = (h + 180).truncatingRemainder(dividingBy: 360)
+        let compHex = hslToHex(h: compHue, s: s, l: l)
+
+        let triadic1 = hslToHex(h: (h + 120).truncatingRemainder(dividingBy: 360), s: s, l: l)
+        let triadic2 = hslToHex(h: (h + 240).truncatingRemainder(dividingBy: 360), s: s, l: l)
+
+        return ColorInfoResponse(
+            hex: "#\(normalHex)",
+            rgb: rgb,
+            hsl: hsl,
+            name: name,
+            complementary: "#\(compHex)",
+            triadic: ["#\(triadic1)", "#\(triadic2)"]
+        )
+    }
+
+    // MARK: - Timestamp
+
+    func timestamp(req: Request) async throws -> TimestampResponse {
+        let format = req.query[String.self, at: "format"] ?? "iso"
+        let providedUnix = req.query[Int.self, at: "timestamp"]
+
+        let date = providedUnix.map { Date(timeIntervalSince1970: TimeInterval($0)) } ?? Date()
+        let unixTime = Int(date.timeIntervalSince1970)
+
+        let iso = ISO8601DateFormatter().string(from: date)
+
+        let rfc2822Formatter = DateFormatter()
+        rfc2822Formatter.locale = Locale(identifier: "en_US_POSIX")
+        rfc2822Formatter.dateFormat = "EEE, dd MMM yyyy HH:mm:ss Z"
+        rfc2822Formatter.timeZone = TimeZone(abbreviation: "UTC")
+        let rfc2822 = rfc2822Formatter.string(from: date)
+
+        let humanFormatter = DateFormatter()
+        humanFormatter.locale = Locale(identifier: "en_US")
+        humanFormatter.dateStyle = .long
+        humanFormatter.timeStyle = .long
+        humanFormatter.timeZone = TimeZone(abbreviation: "UTC")
+        let human = humanFormatter.string(from: date)
+
+        let formatted: String
+        switch format.lowercased() {
+        case "unix":    formatted = "\(unixTime)"
+        case "rfc2822": formatted = rfc2822
+        case "human":   formatted = human
+        default:        formatted = iso
+        }
+
+        return TimestampResponse(unix: unixTime, iso: iso, rfc2822: rfc2822, human: human, formatted: formatted)
+    }
+
+    // MARK: - Random
+
+    func random(req: Request) async throws -> RandomResponse {
+        let type = (req.query[String.self, at: "type"] ?? "uuid").lowercased()
+
+        switch type {
+        case "uuid":
+            return RandomResponse(type: "uuid", value: UUID().uuidString)
+
+        case "password":
+            let length = min(max(req.query[Int.self, at: "length"] ?? 16, 8), 128)
+            let charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()-_=+[]{}|;:,.<>?"
+            let value = String((0..<length).map { _ in charset.randomElement()! })
+            return RandomResponse(type: "password", value: value)
+
+        case "hex":
+            let length = min(max(req.query[Int.self, at: "length"] ?? 32, 1), 256)
+            let charset = "0123456789abcdef"
+            let value = String((0..<length).map { _ in charset.randomElement()! })
+            return RandomResponse(type: "hex", value: value)
+
+        case "number":
+            let minVal = req.query[Int.self, at: "min"] ?? 0
+            let maxVal = req.query[Int.self, at: "max"] ?? 1_000_000
+            guard minVal <= maxVal else {
+                throw Abort(.badRequest, reason: "min must be less than or equal to max")
+            }
+            return RandomResponse(type: "number", value: "\(Int.random(in: minVal...maxVal))")
+
+        case "string":
+            let length = min(max(req.query[Int.self, at: "length"] ?? 16, 1), 256)
+            let charset = req.query[String.self, at: "charset"] ?? "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+            guard !charset.isEmpty else {
+                throw Abort(.badRequest, reason: "charset cannot be empty")
+            }
+            let value = String((0..<length).map { _ in charset.randomElement()! })
+            return RandomResponse(type: "string", value: value)
+
+        default:
+            throw Abort(.badRequest, reason: "Unknown type: \(type). Valid types: uuid, password, hex, number, string")
+        }
+    }
+
+    // MARK: - Diff
+
+    func diff(req: Request) async throws -> DiffResponse {
+        let body = try req.content.decode(DiffRequest.self)
+
+        let lines1 = Array(body.text1.components(separatedBy: "\n").prefix(500))
+        let lines2 = Array(body.text2.components(separatedBy: "\n").prefix(500))
+
+        let diffLines = computeLCSDiff(lines1, lines2)
+
+        let additions = diffLines.filter { $0.type == "addition" }.count
+        let deletions = diffLines.filter { $0.type == "deletion" }.count
+        let unchanged = diffLines.filter { $0.type == "unchanged" }.count
+        let total = max(lines1.count + lines2.count, 1)
+        let similarity = (Double(unchanged * 2) / Double(total) * 1000.0).rounded() / 10.0
+
+        return DiffResponse(
+            additions: additions,
+            deletions: deletions,
+            unchanged: unchanged,
+            similarity: similarity,
+            diff: diffLines
+        )
+    }
+
     // MARK: - Private Helpers
 
     private func validatedURL(_ req: Request) throws -> String {
@@ -730,6 +900,208 @@ struct ToolsController {
         }
 
         return (registrar, creationDate, expiryDate, updatedDate, nameServers, status, registrantName, registrantOrg, registrantCountry)
+    }
+
+    // MARK: - Markdown Conversion
+
+    private func convertMarkdown(_ markdown: String) -> String {
+        let lines = markdown.components(separatedBy: "\n")
+        var html = ""
+        var inCodeBlock = false
+        var codeBlockContent = ""
+        var inUnorderedList = false
+        var inOrderedList = false
+
+        func closeLists() {
+            if inUnorderedList { html += "</ul>\n"; inUnorderedList = false }
+            if inOrderedList { html += "</ol>\n"; inOrderedList = false }
+        }
+
+        for line in lines {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+
+            if trimmed.hasPrefix("```") {
+                if inCodeBlock {
+                    html += escapeHTML(codeBlockContent) + "</code></pre>\n"
+                    codeBlockContent = ""
+                    inCodeBlock = false
+                } else {
+                    closeLists()
+                    let lang = String(trimmed.dropFirst(3)).trimmingCharacters(in: .whitespaces)
+                    let langAttr = lang.isEmpty ? "" : " class=\"language-\(lang)\""
+                    html += "<pre><code\(langAttr)>"
+                    inCodeBlock = true
+                }
+                continue
+            }
+
+            if inCodeBlock {
+                if !codeBlockContent.isEmpty { codeBlockContent += "\n" }
+                codeBlockContent += line
+                continue
+            }
+
+            if trimmed.isEmpty {
+                closeLists()
+                continue
+            }
+
+            if trimmed.count >= 3 && trimmed.allSatisfy({ $0 == "-" || $0 == "*" || $0 == "_" }) && Set(trimmed).count == 1 {
+                closeLists(); html += "<hr>\n"; continue
+            }
+
+            if trimmed.hasPrefix("###### ") {
+                closeLists(); html += "<h6>\(inlineMD(String(trimmed.dropFirst(7))))</h6>\n"
+            } else if trimmed.hasPrefix("##### ") {
+                closeLists(); html += "<h5>\(inlineMD(String(trimmed.dropFirst(6))))</h5>\n"
+            } else if trimmed.hasPrefix("#### ") {
+                closeLists(); html += "<h4>\(inlineMD(String(trimmed.dropFirst(5))))</h4>\n"
+            } else if trimmed.hasPrefix("### ") {
+                closeLists(); html += "<h3>\(inlineMD(String(trimmed.dropFirst(4))))</h3>\n"
+            } else if trimmed.hasPrefix("## ") {
+                closeLists(); html += "<h2>\(inlineMD(String(trimmed.dropFirst(3))))</h2>\n"
+            } else if trimmed.hasPrefix("# ") {
+                closeLists(); html += "<h1>\(inlineMD(String(trimmed.dropFirst(2))))</h1>\n"
+            } else if trimmed.hasPrefix("> ") {
+                closeLists(); html += "<blockquote><p>\(inlineMD(String(trimmed.dropFirst(2))))</p></blockquote>\n"
+            } else if trimmed.hasPrefix("- ") || trimmed.hasPrefix("* ") || trimmed.hasPrefix("+ ") {
+                if inOrderedList { html += "</ol>\n"; inOrderedList = false }
+                if !inUnorderedList { html += "<ul>\n"; inUnorderedList = true }
+                html += "<li>\(inlineMD(String(trimmed.dropFirst(2))))</li>\n"
+            } else if trimmed.range(of: #"^\d+\. "#, options: .regularExpression) != nil {
+                if inUnorderedList { html += "</ul>\n"; inUnorderedList = false }
+                if !inOrderedList { html += "<ol>\n"; inOrderedList = true }
+                let content = trimmed.replacingOccurrences(of: #"^\d+\. "#, with: "", options: .regularExpression)
+                html += "<li>\(inlineMD(content))</li>\n"
+            } else {
+                closeLists(); html += "<p>\(inlineMD(trimmed))</p>\n"
+            }
+        }
+
+        closeLists()
+        if inCodeBlock { html += escapeHTML(codeBlockContent) + "</code></pre>\n" }
+        return html.trimmingCharacters(in: .newlines)
+    }
+
+    private func inlineMD(_ text: String) -> String {
+        var r = text
+        // Images before links
+        r = r.replacingOccurrences(of: #"!\[([^\]]*)\]\(([^)]+)\)"#, with: "<img src=\"$2\" alt=\"$1\">", options: .regularExpression)
+        // Links
+        r = r.replacingOccurrences(of: #"\[([^\]]+)\]\(([^)]+)\)"#, with: "<a href=\"$2\">$1</a>", options: .regularExpression)
+        // Bold+italic
+        r = r.replacingOccurrences(of: #"\*\*\*([^*]+)\*\*\*"#, with: "<strong><em>$1</em></strong>", options: .regularExpression)
+        // Bold
+        r = r.replacingOccurrences(of: #"\*\*([^*]+)\*\*"#, with: "<strong>$1</strong>", options: .regularExpression)
+        r = r.replacingOccurrences(of: #"__([^_]+)__"#, with: "<strong>$1</strong>", options: .regularExpression)
+        // Italic
+        r = r.replacingOccurrences(of: #"\*([^*\s][^*]*)\*"#, with: "<em>$1</em>", options: .regularExpression)
+        r = r.replacingOccurrences(of: #"_([^_\s][^_]*)_"#, with: "<em>$1</em>", options: .regularExpression)
+        // Strikethrough
+        r = r.replacingOccurrences(of: #"~~([^~]+)~~"#, with: "<del>$1</del>", options: .regularExpression)
+        // Inline code
+        r = r.replacingOccurrences(of: #"`([^`]+)`"#, with: "<code>$1</code>", options: .regularExpression)
+        return r
+    }
+
+    private func escapeHTML(_ text: String) -> String {
+        return text
+            .replacingOccurrences(of: "&", with: "&amp;")
+            .replacingOccurrences(of: "<", with: "&lt;")
+            .replacingOccurrences(of: ">", with: "&gt;")
+            .replacingOccurrences(of: "\"", with: "&quot;")
+    }
+
+    // MARK: - Color Helpers
+
+    private func rgbToHSL(r: Int, g: Int, b: Int) -> (Double, Double, Double) {
+        let rf = Double(r) / 255.0, gf = Double(g) / 255.0, bf = Double(b) / 255.0
+        let maxC = Swift.max(rf, gf, bf), minC = Swift.min(rf, gf, bf)
+        let delta = maxC - minC
+        let l = (maxC + minC) / 2.0
+        var h: Double = 0, s: Double = 0
+        if delta > 0 {
+            s = delta / (1 - abs(2 * l - 1))
+            if maxC == rf      { h = 60 * (((gf - bf) / delta).truncatingRemainder(dividingBy: 6)) }
+            else if maxC == gf { h = 60 * ((bf - rf) / delta + 2) }
+            else               { h = 60 * ((rf - gf) / delta + 4) }
+            if h < 0 { h += 360 }
+        }
+        return (h.rounded(), (s * 100).rounded(), (l * 100).rounded())
+    }
+
+    private func hslToHex(h: Double, s: Double, l: Double) -> String {
+        let sf = s / 100.0, lf = l / 100.0
+        let c = (1 - abs(2 * lf - 1)) * sf
+        let x = c * (1 - abs((h / 60).truncatingRemainder(dividingBy: 2) - 1))
+        let m = lf - c / 2
+        var rf: Double, gf: Double, bf: Double
+        switch h {
+        case 0..<60:   rf = c; gf = x; bf = 0
+        case 60..<120: rf = x; gf = c; bf = 0
+        case 120..<180: rf = 0; gf = c; bf = x
+        case 180..<240: rf = 0; gf = x; bf = c
+        case 240..<300: rf = x; gf = 0; bf = c
+        default:       rf = c; gf = 0; bf = x
+        }
+        let ri = Int(((rf + m) * 255).rounded())
+        let gi = Int(((gf + m) * 255).rounded())
+        let bi = Int(((bf + m) * 255).rounded())
+        return String(format: "%02X%02X%02X", ri, gi, bi)
+    }
+
+    private func closestColorName(r: Int, g: Int, b: Int) -> String {
+        let colors: [(String, Int, Int, Int)] = [
+            ("Red", 255, 0, 0), ("Green", 0, 128, 0), ("Blue", 0, 0, 255),
+            ("White", 255, 255, 255), ("Black", 0, 0, 0), ("Yellow", 255, 255, 0),
+            ("Cyan", 0, 255, 255), ("Magenta", 255, 0, 255), ("Orange", 255, 165, 0),
+            ("Purple", 128, 0, 128), ("Pink", 255, 192, 203), ("Brown", 165, 42, 42),
+            ("Gray", 128, 128, 128), ("Silver", 192, 192, 192), ("Gold", 255, 215, 0),
+            ("Navy", 0, 0, 128), ("Teal", 0, 128, 128), ("Maroon", 128, 0, 0),
+            ("Olive", 128, 128, 0), ("Lime", 0, 255, 0), ("Coral", 255, 127, 80),
+            ("Salmon", 250, 128, 114), ("Indigo", 75, 0, 130), ("Violet", 238, 130, 238),
+            ("Turquoise", 64, 224, 208), ("Crimson", 220, 20, 60), ("Khaki", 240, 230, 140),
+            ("Lavender", 230, 230, 250), ("Beige", 245, 245, 220), ("Ivory", 255, 255, 240),
+            ("Charcoal", 54, 69, 79), ("Tan", 210, 180, 140), ("Sky Blue", 135, 206, 235),
+            ("Mint", 152, 255, 152), ("Peach", 255, 218, 185), ("Rose", 255, 0, 127),
+            ("Burgundy", 128, 0, 32), ("Emerald", 0, 201, 87), ("Amber", 255, 191, 0),
+            ("Slate", 112, 128, 144),
+        ]
+        var closest = colors[0].0
+        var minDist = Int.max
+        for (name, cr, cg, cb) in colors {
+            let d = (r - cr) * (r - cr) + (g - cg) * (g - cg) + (b - cb) * (b - cb)
+            if d < minDist { minDist = d; closest = name }
+        }
+        return closest
+    }
+
+    // MARK: - Diff Helper
+
+    private func computeLCSDiff(_ a: [String], _ b: [String]) -> [DiffLine] {
+        let m = a.count, n = b.count
+        if m == 0 { return b.map { DiffLine(type: "addition", content: $0) } }
+        if n == 0 { return a.map { DiffLine(type: "deletion", content: $0) } }
+
+        var dp = Array(repeating: Array(repeating: 0, count: n + 1), count: m + 1)
+        for i in 1...m {
+            for j in 1...n {
+                dp[i][j] = a[i-1] == b[j-1] ? dp[i-1][j-1] + 1 : Swift.max(dp[i-1][j], dp[i][j-1])
+            }
+        }
+
+        var result: [DiffLine] = []
+        var i = m, j = n
+        while i > 0 || j > 0 {
+            if i > 0 && j > 0 && a[i-1] == b[j-1] {
+                result.append(DiffLine(type: "unchanged", content: a[i-1])); i -= 1; j -= 1
+            } else if j > 0 && (i == 0 || dp[i][j-1] >= dp[i-1][j]) {
+                result.append(DiffLine(type: "addition", content: b[j-1])); j -= 1
+            } else {
+                result.append(DiffLine(type: "deletion", content: a[i-1])); i -= 1
+            }
+        }
+        return result.reversed()
     }
 }
 

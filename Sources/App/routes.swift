@@ -29,6 +29,7 @@ public func routes(_ app: Application) throws {
     extractGroup.get("metadata", use: extraction.metadata)
     extractGroup.get("links", use: extraction.links)
     extractGroup.get("text", use: extraction.text)
+    extractGroup.get("structured", use: extraction.structured)
 
     // MARK: Developer Tools endpoints
     let tools = ToolsController()
@@ -41,4 +42,9 @@ public func routes(_ app: Application) throws {
     toolsGroup.get("sitemap", use: tools.sitemap)
     toolsGroup.get("social", use: tools.social)
     toolsGroup.get("tech-stack", use: tools.techStack)
+    toolsGroup.post("markdown-to-html", use: tools.markdownToHtml)
+    toolsGroup.get("color", use: tools.colorInfo)
+    toolsGroup.get("timestamp", use: tools.timestamp)
+    toolsGroup.get("random", use: tools.random)
+    toolsGroup.post("diff", use: tools.diff)
 }

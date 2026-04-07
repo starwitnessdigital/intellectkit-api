@@ -299,6 +299,212 @@ struct WebExtractionService {
         )
     }
 
+    // MARK: - Structured Extraction
+
+    func extractStructured(schema: String) throws -> StructuredExtractionResponse {
+        let doc = try SwiftSoup.parse(html)
+        var fields: [String: String] = [:]
+        var arrays: [String: [String]] = [:]
+
+        let jsonLDBlocks = extractJSONLDBlocks(doc)
+
+        switch schema.lowercased() {
+        case "product":
+            if let block = jsonLDBlock(from: jsonLDBlocks, types: ["Product"]) {
+                setLD(&fields, "name", ldString(block, "name"))
+                setLD(&fields, "description", ldString(block, "description"))
+                setLD(&fields, "price", ldNestedString(block, "offers", "price"))
+                setLD(&fields, "currency", ldNestedString(block, "offers", "priceCurrency"))
+                setLD(&fields, "brand", ldString(block, "brand") ?? ldNestedString(block, "brand", "name"))
+                setLD(&fields, "availability", ldNestedString(block, "offers", "availability"))
+                setLD(&fields, "sku", ldString(block, "sku"))
+                setLD(&fields, "ratingValue", ldNestedString(block, "aggregateRating", "ratingValue"))
+                setLD(&fields, "reviewCount", ldNestedString(block, "aggregateRating", "reviewCount"))
+                if let img = ldImageURL(block) { arrays["images"] = [img] }
+            }
+            if fields["name"] == nil { fields["name"] = nonEmpty(try? doc.select("[itemprop=name]").first()?.text()) ?? nonEmpty(try? doc.select("h1").first()?.text()) }
+            if fields["price"] == nil { fields["price"] = nonEmpty(try? doc.select("[itemprop=price]").first()?.attr("content")) ?? nonEmpty(try? doc.select("[itemprop=price]").first()?.text()) }
+            if fields["description"] == nil { fields["description"] = nonEmpty(try? doc.select("[itemprop=description]").first()?.text()) ?? nonEmpty(try? doc.select("meta[property=og:description]").first()?.attr("content")) }
+            if arrays["images"] == nil { arrays["images"] = [nonEmpty(try? doc.select("meta[property=og:image]").first()?.attr("content"))].compactMap { $0 } }
+
+        case "article":
+            if let block = jsonLDBlock(from: jsonLDBlocks, types: ["Article", "NewsArticle", "BlogPosting"]) {
+                setLD(&fields, "title", ldString(block, "headline") ?? ldString(block, "name"))
+                setLD(&fields, "description", ldString(block, "description"))
+                setLD(&fields, "author", ldString(block, "author") ?? ldNestedString(block, "author", "name"))
+                setLD(&fields, "publishedDate", ldString(block, "datePublished"))
+                setLD(&fields, "modifiedDate", ldString(block, "dateModified"))
+                if let img = ldImageURL(block) { arrays["images"] = [img] }
+            }
+            if fields["title"] == nil { fields["title"] = nonEmpty(try? doc.select("meta[property=og:title]").first()?.attr("content")) ?? nonEmpty(try? doc.title()) }
+            if fields["author"] == nil { fields["author"] = nonEmpty(try? doc.select("meta[name=author]").first()?.attr("content")) ?? nonEmpty(try? doc.select("[rel=author]").first()?.text()) }
+            if fields["publishedDate"] == nil { fields["publishedDate"] = nonEmpty(try? doc.select("meta[property=article:published_time]").first()?.attr("content")) ?? nonEmpty(try? doc.select("[itemprop=datePublished]").first()?.attr("datetime")) }
+            if fields["description"] == nil { fields["description"] = nonEmpty(try? doc.select("meta[name=description]").first()?.attr("content")) }
+
+        case "recipe":
+            if let block = jsonLDBlock(from: jsonLDBlocks, types: ["Recipe"]) {
+                setLD(&fields, "name", ldString(block, "name"))
+                setLD(&fields, "description", ldString(block, "description"))
+                setLD(&fields, "author", ldString(block, "author") ?? ldNestedString(block, "author", "name"))
+                setLD(&fields, "prepTime", ldString(block, "prepTime"))
+                setLD(&fields, "cookTime", ldString(block, "cookTime"))
+                setLD(&fields, "totalTime", ldString(block, "totalTime"))
+                setLD(&fields, "servings", ldString(block, "recipeYield"))
+                setLD(&fields, "calories", ldNestedString(block, "nutrition", "calories"))
+                setLD(&fields, "cuisine", ldString(block, "recipeCuisine"))
+                setLD(&fields, "category", ldString(block, "recipeCategory"))
+                if let img = ldImageURL(block) { arrays["images"] = [img] }
+                let ingredients = ldArray(block, "recipeIngredient")
+                if !ingredients.isEmpty { arrays["ingredients"] = ingredients }
+                let instructions = ldInstructions(block)
+                if !instructions.isEmpty { arrays["instructions"] = instructions }
+            }
+            if fields["name"] == nil { fields["name"] = nonEmpty(try? doc.select("[itemprop=name]").first()?.text()) ?? nonEmpty(try? doc.select("h1").first()?.text()) }
+            if arrays["ingredients"] == nil {
+                let els = (try? doc.select("[itemprop=recipeIngredient]")) ?? Elements()
+                let items = els.compactMap { try? $0.text() }.filter { !$0.isEmpty }
+                if !items.isEmpty { arrays["ingredients"] = items }
+            }
+
+        case "event":
+            if let block = jsonLDBlock(from: jsonLDBlocks, types: ["Event"]) {
+                setLD(&fields, "name", ldString(block, "name"))
+                setLD(&fields, "description", ldString(block, "description"))
+                setLD(&fields, "startDate", ldString(block, "startDate"))
+                setLD(&fields, "endDate", ldString(block, "endDate"))
+                setLD(&fields, "url", ldString(block, "url"))
+                setLD(&fields, "location", ldString(block, "location") ?? ldNestedString(block, "location", "name"))
+                setLD(&fields, "organizer", ldString(block, "organizer") ?? ldNestedString(block, "organizer", "name"))
+                if let img = ldImageURL(block) { arrays["images"] = [img] }
+            }
+            if fields["name"] == nil { fields["name"] = nonEmpty(try? doc.select("[itemprop=name]").first()?.text()) ?? nonEmpty(try? doc.select("h1").first()?.text()) }
+            if fields["startDate"] == nil { fields["startDate"] = nonEmpty(try? doc.select("[itemprop=startDate]").first()?.attr("content")) ?? nonEmpty(try? doc.select("[itemprop=startDate]").first()?.attr("datetime")) }
+            if fields["location"] == nil { fields["location"] = nonEmpty(try? doc.select("[itemprop=location] [itemprop=name]").first()?.text()) ?? nonEmpty(try? doc.select("[itemprop=location]").first()?.text()) }
+
+        case "person":
+            if let block = jsonLDBlock(from: jsonLDBlocks, types: ["Person"]) {
+                setLD(&fields, "name", ldString(block, "name"))
+                setLD(&fields, "jobTitle", ldString(block, "jobTitle"))
+                setLD(&fields, "description", ldString(block, "description"))
+                setLD(&fields, "email", ldString(block, "email"))
+                setLD(&fields, "telephone", ldString(block, "telephone"))
+                setLD(&fields, "url", ldString(block, "url"))
+                setLD(&fields, "organization", ldString(block, "worksFor") ?? ldNestedString(block, "worksFor", "name"))
+                if let img = ldImageURL(block) { fields["image"] = img }
+                let sameAs = ldArray(block, "sameAs")
+                if !sameAs.isEmpty { arrays["sameAs"] = sameAs }
+            }
+            if fields["name"] == nil { fields["name"] = nonEmpty(try? doc.select("[itemprop=name]").first()?.text()) ?? nonEmpty(try? doc.select("h1").first()?.text()) }
+            if fields["jobTitle"] == nil { fields["jobTitle"] = nonEmpty(try? doc.select("[itemprop=jobTitle]").first()?.text()) }
+            if fields["description"] == nil { fields["description"] = nonEmpty(try? doc.select("meta[name=description]").first()?.attr("content")) }
+
+        case "organization":
+            if let block = jsonLDBlock(from: jsonLDBlocks, types: ["Organization", "LocalBusiness", "Corporation"]) {
+                setLD(&fields, "name", ldString(block, "name"))
+                setLD(&fields, "description", ldString(block, "description"))
+                setLD(&fields, "url", ldString(block, "url"))
+                setLD(&fields, "email", ldString(block, "email"))
+                setLD(&fields, "telephone", ldString(block, "telephone"))
+                setLD(&fields, "address", ldFormattedAddress(block["address"] as? [String: Any]))
+                if let logo = ldImageURL(block, key: "logo") { fields["logo"] = logo }
+                if let img = ldImageURL(block) { fields["image"] = img }
+                let sameAs = ldArray(block, "sameAs")
+                if !sameAs.isEmpty { arrays["sameAs"] = sameAs }
+            }
+            if fields["name"] == nil { fields["name"] = nonEmpty(try? doc.select("[itemprop=name]").first()?.text()) ?? nonEmpty(try? doc.select("meta[property=og:site_name]").first()?.attr("content")) }
+            if fields["description"] == nil { fields["description"] = nonEmpty(try? doc.select("meta[name=description]").first()?.attr("content")) }
+            if fields["url"] == nil { fields["url"] = nonEmpty(try? doc.select("link[rel=canonical]").first()?.attr("href")) }
+
+        default:
+            throw Abort(.badRequest, reason: "Unknown schema: \(schema). Valid schemas: product, article, recipe, event, person, organization")
+        }
+
+        return StructuredExtractionResponse(
+            url: baseURL,
+            schema: schema,
+            fields: fields.filter { !$0.value.isEmpty },
+            arrays: arrays.filter { !$0.value.isEmpty },
+            extractedAt: nowISO8601()
+        )
+    }
+
+    // MARK: - JSON-LD Helpers
+
+    private func extractJSONLDBlocks(_ doc: Document) -> [[String: Any]] {
+        var blocks: [[String: Any]] = []
+        guard let scripts = try? doc.select("script[type=application/ld+json]") else { return blocks }
+        for script in scripts {
+            guard let content = try? script.data(),
+                  let data = content.data(using: .utf8),
+                  let json = try? JSONSerialization.jsonObject(with: data) else { continue }
+            if let dict = json as? [String: Any] {
+                if let graph = dict["@graph"] as? [[String: Any]] {
+                    blocks.append(contentsOf: graph)
+                } else {
+                    blocks.append(dict)
+                }
+            } else if let arr = json as? [[String: Any]] {
+                blocks.append(contentsOf: arr)
+            }
+        }
+        return blocks
+    }
+
+    private func jsonLDBlock(from blocks: [[String: Any]], types: [String]) -> [String: Any]? {
+        let lower = types.map { $0.lowercased() }
+        return blocks.first { block in
+            if let t = block["@type"] as? String { return lower.contains(t.lowercased()) }
+            if let ts = block["@type"] as? [String] { return ts.contains { lower.contains($0.lowercased()) } }
+            return false
+        }
+    }
+
+    private func ldString(_ block: [String: Any], _ key: String) -> String? {
+        if let v = block[key] as? String, !v.isEmpty { return v }
+        if let v = block[key] as? [String: Any] { return v["name"] as? String ?? v["@id"] as? String }
+        return nil
+    }
+
+    private func ldNestedString(_ block: [String: Any], _ key: String, _ nested: String) -> String? {
+        if let obj = block[key] as? [String: Any] { return obj[nested] as? String }
+        if let arr = block[key] as? [[String: Any]], let first = arr.first { return first[nested] as? String }
+        return nil
+    }
+
+    private func ldArray(_ block: [String: Any], _ key: String) -> [String] {
+        if let arr = block[key] as? [String] { return arr }
+        if let str = block[key] as? String { return [str] }
+        if let arr = block[key] as? [[String: Any]] { return arr.compactMap { $0["text"] as? String ?? $0["name"] as? String } }
+        return []
+    }
+
+    private func ldImageURL(_ block: [String: Any], key: String = "image") -> String? {
+        if let v = block[key] as? String, !v.isEmpty { return v }
+        if let v = block[key] as? [String: Any] { return v["url"] as? String ?? v["@id"] as? String }
+        if let arr = block[key] as? [String], let first = arr.first { return first }
+        if let arr = block[key] as? [[String: Any]], let first = arr.first { return first["url"] as? String }
+        return nil
+    }
+
+    private func ldInstructions(_ block: [String: Any]) -> [String] {
+        let raw: Any? = block["recipeInstructions"]
+        if let arr = raw as? [String] { return arr }
+        if let arr = raw as? [[String: Any]] { return arr.compactMap { $0["text"] as? String } }
+        if let str = raw as? String { return [str] }
+        return []
+    }
+
+    private func ldFormattedAddress(_ addr: [String: Any]?) -> String? {
+        guard let addr = addr else { return nil }
+        let parts = [addr["streetAddress"], addr["addressLocality"], addr["addressRegion"],
+                     addr["postalCode"], addr["addressCountry"]].compactMap { $0 as? String }
+        return parts.isEmpty ? nil : parts.joined(separator: ", ")
+    }
+
+    private func setLD(_ dict: inout [String: String], _ key: String, _ value: String?) {
+        if let v = value, !v.isEmpty { dict[key] = v }
+    }
+
     // MARK: - Helpers
 
     /// Resolves relative URLs against the base URL.

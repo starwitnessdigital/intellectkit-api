@@ -73,3 +73,13 @@ struct TextExtractionResponse: Content {
     let characterCount: Int
     let extractedAt: String
 }
+
+// MARK: - Structured Extraction
+
+struct StructuredExtractionResponse: Content {
+    let url: String
+    let schema: String
+    let fields: [String: String]
+    let arrays: [String: [String]]
+    let extractedAt: String
+}
