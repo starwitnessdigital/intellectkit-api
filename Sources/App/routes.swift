@@ -41,4 +41,24 @@ public func routes(_ app: Application) throws {
     toolsGroup.get("sitemap", use: tools.sitemap)
     toolsGroup.get("social", use: tools.social)
     toolsGroup.get("tech-stack", use: tools.techStack)
+
+    // MARK: Text Analysis endpoints
+    let text = TextController()
+    let textGroup = v1.grouped("text")
+    textGroup.post("sentiment", use: text.sentiment)
+    textGroup.post("readability", use: text.readability)
+    textGroup.post("keywords", use: text.keywords)
+    textGroup.post("language", use: text.language)
+
+    // MARK: Data Transform endpoints
+    let transform = TransformController()
+    let transformGroup = v1.grouped("transform")
+    transformGroup.post("json-to-csv", use: transform.jsonToCsv)
+    transformGroup.post("csv-to-json", use: transform.csvToJson)
+
+    // MARK: Security endpoints
+    let security = SecurityController()
+    let securityGroup = v1.grouped("security")
+    securityGroup.post("hash", use: security.hash)
+    securityGroup.post("password-strength", use: security.passwordStrength)
 }
